@@ -17,8 +17,8 @@ typedef enum
 
 typedef struct
 {
-    // Full-duplex SPI: transmit tx_buf, receive into rx_buf, always 18 bytes
-    int (*spi_transfer)(const uint8_t* tx_buf, uint8_t* rx_buf, size_t len_bytes);
+    uint8_t (*spi_read)(void* buffer, const uint8_t length);
+    uint8_t (*spi_write)(const void* const buffer, const uint8_t length);
 } ADS131M0XHAL;
 
 typedef struct

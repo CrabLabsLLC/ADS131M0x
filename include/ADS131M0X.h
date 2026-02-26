@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "ads131m0x_types.h"
+#include "ADS131M0XTypes.h"
 
 
 
