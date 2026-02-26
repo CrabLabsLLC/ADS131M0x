@@ -10,4 +10,15 @@
 #define ADS131M0X_REG_GAIN1 0x04U  ///< PGA gain CH0–CH3
 #define ADS131M0X_REG_CFG 0x06U    ///< Global configuration
 
+// ── Command opcodes (16-bit; shift left 8 to form 24-bit frame word) ────────
+typedef enum ads131m0x_cmd_e
+{
+    ADS131M0X_CMD_NULL = 0x0000U, ///< No-op / clock out pending response / listening
+    ADS131M0X_CMD_RESET = 0x0011U,   ///< Software reset
+    ADS131M0X_CMD_STANDBY = 0x0022U, ///< Enter standby
+    ADS131M0X_CMD_WAKEUP = 0x0033U,  ///< Exit standby
+    ADS131M0X_CMD_LOCK = 0x0555U,    ///< Lock register writes
+    ADS131M0X_CMD_UNLOCK = 0x0655U  ///< Unlock register writes
+}ADS131M0XCommand;
+
 #endif // ADS131M0X_REGS_H
