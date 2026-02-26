@@ -96,9 +96,13 @@ ADS131M0xError ADS131M0x_ReadRegister (const ADS131M0x* const device, const ADS1
         0x00U, // padding
     };
 
-    const ADS131M0xError err = ADS131M0x_Write(device, buffer, 3);
-    if (err)
-        return err;
+      const ADS131M0xError write_err = ADS131M0x_Write(device, tx, sizeof(tx));
+      if (write_err)
+          return write_err;
+
+      const ADS131M0xError read_err = ADS131M0x_Read(device, buffer, 3);      
+      if (read_err)
+          return read_err;
 
     return ADS131M0X_ERROR_OK;
 }
