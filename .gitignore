@@ -121,6 +121,8 @@ wheels/
 .env.local
 .env.*.local
 config.local.*
+.claude
+.vscode
 
 # Examples that might contain sensitive data
 examples/*/config.h

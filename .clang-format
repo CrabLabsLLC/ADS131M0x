@@ -1,7 +1,7 @@
 ---
 Language: Cpp
 BasedOnStyle: LLVM
-Standard: c11
+Standard: Latest
 
 # Indentation
 UseTab: ForIndentation
@@ -42,5 +42,5 @@ AlignTrailingComments: true
 SortIncludes: false
 
 # End of file
-KeepEmptyLinesAtTheEOF: true
+KeepEmptyLinesAtEOF: true
 ---
