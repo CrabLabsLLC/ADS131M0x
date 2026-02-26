@@ -11,7 +11,7 @@
 
 // ~~~~~~~~~~~~ Low Level API ~~~~~~~~~~~~ //
 
-ADS131M0xError ADS131M0x_WriteRegister (const ADS131M0x* const device, const ADS131M0xRegister reg, uint8_t value);
+ADS131M0xError ADS131M0x_WriteRegister (const ADS131M0x* const device, const ADS131M0xRegister reg, uint16_t value);
 
 ADS131M0xError ADS131M0x_ReadRegister (const ADS131M0x* const device, const ADS131M0xRegister reg, void* const buffer);
 

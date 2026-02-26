@@ -4,7 +4,6 @@
 #include "ADS131M0xTypes.h"
 
 #include <assert.h>
-#include <cstdint>
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -15,7 +14,7 @@
 static uint16_t ADS131M0x_BuildWregCmd(uint8_t addr, uint8_t count);
 static uint16_t ADS131M0x_BuildRregCmd(uint8_t addr, uint8_t count);
 
-ADS131M0xError ads131m0xInit(ADS131M0x* device, const ADS131M0xConfig* cfg, const ADS131M0xHAL* hal) 
+ADS131M0xError ADS131M0x_Init(ADS131M0x* device, const ADS131M0xConfig* cfg, const ADS131M0xHAL* hal) 
 {
     if (device == NULL || cfg == NULL || hal == NULL || hal->spi_read == NULL || hal->spi_write == NULL)
         return ADS131M0X_ERROR_INVALID_ARG;
@@ -23,6 +22,86 @@ ADS131M0xError ads131m0xInit(ADS131M0x* device, const ADS131M0xConfig* cfg, cons
     device->hal = *hal;
     device->config = *cfg;
     device->is_initialized = true;
+
+    return ADS131M0X_ERROR_OK;
+}
+
+ADS131M0xError ADS131M0x_Write(const ADS131M0x* const device, const void* const buffer, uint8_t length)
+{
+    if (device == NULL)
+        return ADS131M0X_ERROR_INVALID_ARG;
+    if (!device->is_initialized)
+        return ADS131M0X_ERROR_NOT_INITIALIZED;
+
+    const uint8_t spi_err = device->hal.spi_write(buffer, length);
+    if (spi_err)
+        return ADS131M0X_ERROR_SPI;
+
+    return ADS131M0X_ERROR_OK;
+}
+
+ADS131M0xError ADS131M0x_Read(const ADS131M0x* const device, void* const buffer, uint8_t length)
+{
+    if (device == NULL)
+        return ADS131M0X_ERROR_INVALID_ARG;
+    if (!device->is_initialized)
+        return ADS131M0X_ERROR_NOT_INITIALIZED;
+
+    const uint8_t spi_err = device->hal.spi_read(buffer, length);
+    if (spi_err)
+        return ADS131M0X_ERROR_SPI;
+
+    return ADS131M0X_ERROR_OK;
+}
+
+ADS131M0xError ADS131M0x_WriteRegister(const ADS131M0x *const device, const ADS131M0xRegister reg, uint16_t value)
+{
+    if (device == NULL)
+        return ADS131M0X_ERROR_INVALID_ARG;
+    if (!device->is_initialized)
+        return ADS131M0X_ERROR_NOT_INITIALIZED;
+
+    uint16_t cmd = ADS131M0x_BuildWregCmd((uint8_t)reg, 1);
+
+    const uint8_t tx[6] = 
+    {
+        (uint8_t)(cmd >> 8), // high byte of cmd
+        (uint8_t)(cmd), // low byte of cmd
+        0x00U, // padding
+        (uint8_t)(value >> 8),
+        (uint8_t)(value),
+        0x00U
+    };
+
+    const ADS131M0xError err = ADS131M0x_Write(device, tx, sizeof(tx));
+    if (err)
+        return err;
+
+    return ADS131M0X_ERROR_OK;
+}
+
+ADS131M0xError ADS131M0x_ReadRegister (const ADS131M0x* const device, const ADS131M0xRegister reg, void* const buffer)
+{
+    if (device == NULL)
+        return ADS131M0X_ERROR_INVALID_ARG;
+    if (!device->is_initialized)
+        return ADS131M0X_ERROR_NOT_INITIALIZED;
+
+    uint16_t cmd = ADS131M0x_BuildRregCmd((uint8_t)reg, 1);
+
+    const uint8_t rx[6] = 
+    {
+        (uint8_t)(cmd >> 8), // high byte of cmd
+        (uint8_t)(cmd), // low byte of cmd
+        0x00U, // padding
+        (uint8_t)(value >> 8),
+        (uint8_t)(value),
+        0x00U
+    };
+
+    const ADS131M0xError err = ADS131M0x_Write(device, rx, sizeof(rx));
+    if (err)
+        return err;
 
     return ADS131M0X_ERROR_OK;
 }

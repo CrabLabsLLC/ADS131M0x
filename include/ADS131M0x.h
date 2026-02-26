@@ -11,6 +11,6 @@
 
 // ~~~~~~~~~~~~ HIgh Level API ~~~~~~~~~~~~ //
 
-
+ADS131M0xError ADS131M0x_Init(ADS131M0x* device, const ADS131M0xConfig* cfg, const ADS131M0xHAL* hal);
 
 #endif // ADS131M0X_H
