@@ -6,10 +6,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C"{
-#endif
-
 typedef enum
 {
     ADS131M0X_ERROR_OK = 0,          ///< Success
@@ -23,7 +19,6 @@ typedef struct
 {
     // Full-duplex SPI: transmit tx_buf, receive into rx_buf, always 18 bytes
     int (*spi_transfer)(const uint8_t* tx_buf, uint8_t* rx_buf, size_t len_bytes);
-    void (*delay_ms)(uint32_t ms); ///< Blocking millisecond delay
 } ADS131M0XHAL;
 
 typedef struct
@@ -39,7 +34,3 @@ typedef struct
 } ADS131M0X;
 
 #endif // ADS131M0X_TYPES_H
-
-#ifdef __cplusplus
-}
-#endif

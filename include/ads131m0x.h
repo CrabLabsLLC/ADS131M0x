@@ -8,14 +8,9 @@
 
 #include "ads131m0x_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 
 
-#ifdef __cplusplus
-}
-#endif
+
 
 #endif // ADS131M0X_H
