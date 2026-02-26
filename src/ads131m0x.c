@@ -89,17 +89,14 @@ ADS131M0xError ADS131M0x_ReadRegister (const ADS131M0x* const device, const ADS1
 
     uint16_t cmd = ADS131M0x_BuildRregCmd((uint8_t)reg, 1);
 
-    const uint8_t rx[6] = 
+    const uint8_t rx[3] = 
     {
         (uint8_t)(cmd >> 8), // high byte of cmd
         (uint8_t)(cmd), // low byte of cmd
         0x00U, // padding
-        (uint8_t)(value >> 8),
-        (uint8_t)(value),
-        0x00U
     };
 
-    const ADS131M0xError err = ADS131M0x_Write(device, rx, sizeof(rx));
+    const ADS131M0xError err = ADS131M0x_Write(device, buffer, 3);
     if (err)
         return err;
 
