@@ -1,6 +1,6 @@
 #pragma once
-#ifndef ADS131M0X_H
-#define ADS131M0X_H
+#ifndef ADS131M0XLOWLEVEL_H
+#define ADS131M0XLOWLEVEL_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -11,6 +11,14 @@
 
 // ~~~~~~~~~~~~ Low Level API ~~~~~~~~~~~~ //
 
-ADS131M0xError ads131m0xWriteRegister (const ADS131M0x* const device, uint8_t reg, uint16_t value);
+ADS131M0xError ADS131M0x_WriteRegister (const ADS131M0x* const device, const ADS131M0xRegister reg, uint8_t value);
 
-#endif // ADS131M0X_H
+ADS131M0xError ADS131M0x_ReadRegister (const ADS131M0x* const device, const ADS131M0xRegister reg, void* const buffer);
+
+// ~~~~~~~~~~~~ Bare Bones API ~~~~~~~~~~~ //
+
+ADS131M0xError ADS131M0x_Write(const ADS131M0x* const device, const void* const buffer, uint8_t length);
+
+ADS131M0xError ADS131M0x_Read(const ADS131M0x* const device, void* const buffer, uint8_t length);
+
+#endif // ADS131M0XLOWLEVEL_H

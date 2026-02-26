@@ -3,12 +3,15 @@
 #define ADS131M0X_REGS_H
 
 // ── Register addresses ──────────────────────────────────────────────────────
-#define ADS131M0X_REG_ID 0x00U     ///< Device ID (read-only)
-#define ADS131M0X_REG_STATUS 0x01U ///< Device status
-#define ADS131M0X_REG_MODE 0x02U   ///< Conversion mode
-#define ADS131M0X_REG_CLOCK 0x03U  ///< Clock configuration
-#define ADS131M0X_REG_GAIN1 0x04U  ///< PGA gain CH0–CH3
-#define ADS131M0X_REG_CFG 0x06U    ///< Global configuration
+typedef enum ads131m0x_reg_e
+{
+    ADS131M0X_REG_ID = 0x00U,     ///< Device ID (read-only)
+    ADS131M0X_REG_STATUS = 0x01U, ///< Device status
+    ADS131M0X_REG_MODE = 0x02U,   ///< Conversion mode
+    ADS131M0X_REG_CLOCK = 0x03U,  ///< Clock configuration
+    ADS131M0X_REG_GAIN1 = 0x04U,  ///< PGA gain CH0–CH3
+    ADS131M0X_REG_CFG = 0x06U,    ///< Global configuration
+}ADS131M0xRegister;
 
 // ── Command opcodes (16-bit; shift left 8 to form 24-bit frame word) ────────
 typedef enum ads131m0x_cmd_e

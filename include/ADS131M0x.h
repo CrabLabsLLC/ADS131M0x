@@ -10,3 +10,7 @@
 #include "ADS131M0xRegisters.h"
 
 // ~~~~~~~~~~~~ HIgh Level API ~~~~~~~~~~~~ //
+
+
+
+#endif // ADS131M0X_H
