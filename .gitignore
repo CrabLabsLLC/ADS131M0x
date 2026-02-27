@@ -1,41 +1,129 @@
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
+# Build outputs
+build/
 *.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
+*.a
 *.so
 *.dylib
 *.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
 *.exe
-*.out
-*.app
+*.elf
 
-# debug information files
-*.dwo
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+
+# ESP-IDF
+sdkconfig
+sdkconfig.old
+.vscode/
+managed_components/
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Arduino IDE
+*.ino.cpp
+*.ino.hex
+*.ino.elf
+*.ino.map
+
+# Embedded toolchains
+*.bin
+*.hex
+*.map
+*.list
+*.sym
+*.lss
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# IDE files
+.vscode/
+.vs/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Documentation generation
+docs/html/
+docs/latex/
+docs/man/
+docs/rtf/
+docs/xml/
+*.tag
+
+# Test outputs
+test_results/
+coverage/
+*.gcov
+*.gcda
+*.gcno
+
+# Temporary files
+*.tmp
+*.bak
+*.orig
+*.rej
+*.patch
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Package managers
+node_modules/
+.npm/
+
+# Python (if used for testing/scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Local configuration
+.env
+.env.local
+.env.*.local
+config.local.*
+.claude
+.vscode
+
+# Examples that might contain sensitive data
+examples/*/config.h
+examples/*/secrets.h
