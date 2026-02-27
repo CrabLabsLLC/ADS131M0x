@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #define ADS131M0X_FRAME_SIZE_BYTES 18U    // 6 words × 3 bytes
 #define ADS131M0X_STARTUP_DUMMY_FRAMES 2U // Discard first 2 samples after reset
@@ -26,7 +27,7 @@ ADS131M0xError ADS131M0x_Init(ADS131M0x* device, const ADS131M0xConfig* cfg, con
     return ADS131M0X_ERROR_OK;
 }
 
-ADS131M0xError ADS131M0x_Write(const ADS131M0x* const device, const void* const buffer, uint8_t length)
+ADS131M0xError ADS131M0x_Write(const ADS131M0x* const device, const void* const buffer, const uint8_t length)
 {
     if (device == NULL)
         return ADS131M0X_ERROR_INVALID_ARG;
@@ -96,13 +97,13 @@ ADS131M0xError ADS131M0x_ReadRegister (const ADS131M0x* const device, const ADS1
         0x00U, // padding
     };
 
-      const ADS131M0xError write_err = ADS131M0x_Write(device, tx, sizeof(tx));
-      if (write_err)
-          return write_err;
+    const ADS131M0xError write_err = ADS131M0x_Write(device, tx, sizeof(tx));
+    if (write_err)
+        return write_err;
 
-      const ADS131M0xError read_err = ADS131M0x_Read(device, buffer, 3);      
-      if (read_err)
-          return read_err;
+    const ADS131M0xError read_err = ADS131M0x_Read(device, buffer, 3);      
+    if (read_err)
+        return read_err;
 
     return ADS131M0X_ERROR_OK;
 }
