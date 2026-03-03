@@ -163,7 +163,7 @@ Ads131m0xError ads131m0xWriteRegister(const Ads131m0x* const device,
 
     const uint16_t cmd = ads131m0xBuildWregCmd((uint8_t)reg, 1);
 
-    // Two full frames in one CS assertion (Example 2 approach)
+    // Two full frames in one CS assertion
     // Frame 1: WREG command (Word 0) + register data (Word 1) + padding
     // Frame 2: NULL (zeros) — captures ACK response
     uint8_t tx[ADS131M0X_TWO_FRAMES_BYTES] = {0};
@@ -192,7 +192,7 @@ Ads131m0xError ads131m0xReadRegister(const Ads131m0x* const device,
     if (!device->is_initialized)
         return ADS131M0X_ERROR_NOT_INITIALIZED;
 
-    // Two full frames in one CS assertion (Example 2 approach)
+    // Two full frames in one CS assertion
     // Frame 1: RREG command in Word 0, rest zeros
     // Frame 2: NULL command — response (register value) comes back in Word 0
     const uint16_t cmd = ads131m0xBuildRregCmd((uint8_t)reg, 1);
