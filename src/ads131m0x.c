@@ -23,7 +23,8 @@ Ads131m0xError ads131m0xInit(Ads131m0x* device,
 {
     if (device == NULL || config == NULL || hal == NULL)
         return ADS131M0X_ERROR_INVALID_ARG;
-    if (hal->spi_read == NULL || hal->spi_write == NULL || hal->delayMs == NULL)
+    if (hal->spi_read == NULL || hal->spi_write == NULL ||
+        hal->cs_set == NULL || hal->delayMs == NULL)
         return ADS131M0X_ERROR_INVALID_ARG;
 
     device->hal = *hal;
@@ -41,7 +42,7 @@ Ads131m0xError ads131m0xInit(Ads131m0x* device,
     // Enable register reads
     device->is_initialized = true;
 
-    // Unlock if locked
+    // Unlock if locked (device unlocked by default, but safe to check)
     uint16_t status_val = 0;
     err = ads131m0xReadRegister(device, ADS131M0X_REG_STATUS, &status_val);
     if (err != ADS131M0X_ERROR_OK)
@@ -107,7 +108,10 @@ Ads131m0xError ads131m0xSendCommand(const Ads131m0x* const device,
     tx[0] = (uint8_t)((uint16_t)cmd >> 8);
     tx[1] = (uint8_t)((uint16_t)cmd);
 
+    device->hal.cs_set(0);
     const uint8_t spi_err = device->hal.spi_write(tx, sizeof(tx));
+    device->hal.cs_set(1);
+
     return spi_err ? ADS131M0X_ERROR_SPI : ADS131M0X_ERROR_OK;
 }
 
@@ -121,7 +125,10 @@ Ads131m0xError ads131m0xWrite(const Ads131m0x* const device,
     if (!device->is_initialized)
         return ADS131M0X_ERROR_NOT_INITIALIZED;
 
+    device->hal.cs_set(0);
     const uint8_t spi_err = device->hal.spi_write(buffer, length_bytes);
+    device->hal.cs_set(1);
+
     return spi_err ? ADS131M0X_ERROR_SPI : ADS131M0X_ERROR_OK;
 }
 
@@ -135,7 +142,10 @@ Ads131m0xError ads131m0xRead(const Ads131m0x* const device,
     if (!device->is_initialized)
         return ADS131M0X_ERROR_NOT_INITIALIZED;
 
+    device->hal.cs_set(0);
     const uint8_t spi_err = device->hal.spi_read(buffer, length_bytes);
+    device->hal.cs_set(1);
+
     return spi_err ? ADS131M0X_ERROR_SPI : ADS131M0X_ERROR_OK;
 }
 
@@ -157,7 +167,10 @@ Ads131m0xError ads131m0xWriteRegister(const Ads131m0x* const device,
     tx[3] = (uint8_t)(value >> 8);
     tx[4] = (uint8_t)(value);
 
+    device->hal.cs_set(0);
     const uint8_t spi_err = device->hal.spi_write(tx, sizeof(tx));
+    device->hal.cs_set(1);
+
     return spi_err ? ADS131M0X_ERROR_SPI : ADS131M0X_ERROR_OK;
 }
 
@@ -172,19 +185,27 @@ Ads131m0xError ads131m0xReadRegister(const Ads131m0x* const device,
     if (!device->is_initialized)
         return ADS131M0X_ERROR_NOT_INITIALIZED;
 
-    // Frame 1: send RREG command
+    // Frame N: send RREG command
     const uint16_t cmd = ads131m0xBuildRregCmd((uint8_t)reg, 1);
     uint8_t tx[ADS131M0X_FRAME_SIZE_BYTES] = {0};
     tx[0] = (uint8_t)(cmd >> 8);
     tx[1] = (uint8_t)(cmd);
 
+    device->hal.cs_set(0);
     uint8_t spi_err = device->hal.spi_write(tx, sizeof(tx));
+    device->hal.cs_set(1);
+
     if (spi_err)
         return ADS131M0X_ERROR_SPI;
 
-    // Frame 2: clock out response
+    // Frame N+1: clock out NULL, response in Word 0
+    static const uint8_t zeros[ADS131M0X_FRAME_SIZE_BYTES] = {0};
     uint8_t rx[ADS131M0X_FRAME_SIZE_BYTES] = {0};
+
+    device->hal.cs_set(0);
     spi_err = device->hal.spi_read(rx, sizeof(rx));
+    device->hal.cs_set(1);
+
     if (spi_err)
         return ADS131M0X_ERROR_SPI;
 

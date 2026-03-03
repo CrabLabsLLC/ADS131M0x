@@ -26,6 +26,7 @@ typedef struct
 {
     uint8_t (*spi_read)(void* buffer, const uint8_t length_bytes);
     uint8_t (*spi_write)(const void* const buffer, const uint8_t length_bytes);
+    void (*cs_set)(const uint8_t level);   ///< 0 = assert (low), 1 = deassert (high)
     void (*delayMs)(const uint32_t delay_ms);
 } Ads131m0xHAL;
 

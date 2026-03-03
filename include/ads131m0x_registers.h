@@ -25,7 +25,7 @@ typedef enum
     ADS131M0X_CMD_STANDBY = 0x0022U, ///< Enter standby
     ADS131M0X_CMD_WAKEUP = 0x0033U,  ///< Exit standby
     ADS131M0X_CMD_LOCK = 0x0555U,    ///< Lock register writes
-    ADS131M0X_CMD_UNLOCK = 0x0655U,  ///< Unlock register writes
+    ADS131M0X_CMD_UNLOCK = 0x0666U,  ///< Unlock register writes
     ADS131M0X_CMD_RREG = 0xA000U,    ///< Read register base opcode
     ADS131M0X_CMD_WREG = 0x6000U,    ///< Write register base opcode
 } Ads131m0xCommand;
