@@ -25,8 +25,18 @@ typedef enum
     ADS131M0X_CMD_STANDBY = 0x0022U, ///< Enter standby
     ADS131M0X_CMD_WAKEUP = 0x0033U,  ///< Exit standby
     ADS131M0X_CMD_LOCK = 0x0555U,    ///< Lock register writes
-    ADS131M0X_CMD_UNLOCK = 0x0655U  ///< Unlock register writes
+    ADS131M0X_CMD_UNLOCK = 0x0655U,  ///< Unlock register writes
+    ADS131M0X_CMD_RREG = 0xA000U,    ///< Read register base opcode
+    ADS131M0X_CMD_WREG = 0x6000U,    ///< Write register base opcode
 } Ads131m0xCommand;
+
+// ── ID register (0x00) bitfields ────────────────────────────────────────────
+#define ADS131M0X_ID_CHANCNT_SHIFT  8U
+#define ADS131M0X_ID_CHANCNT_MASK   0x0F00U
+
+// ── STATUS register (0x01) bitfields ────────────────────────────────────────
+#define ADS131M0X_STATUS_LOCK_SHIFT  15U
+#define ADS131M0X_STATUS_LOCK_MASK   0x8000U
 
 #ifdef __cplusplus
 }
