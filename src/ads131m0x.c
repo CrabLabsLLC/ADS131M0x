@@ -9,7 +9,8 @@
 #include <stdint.h>
 #include <string.h>
 
-#define ADS131M0X_FRAME_SIZE_BYTES  18U ///< 6 words × 3 bytes
+#define ADS131M0X_FRAME_SIZE_BYTES  18U  ///< 6 words × 3 bytes
+#define ADS131M0X_TWO_FRAMES_BYTES 36U  ///< 2 frames back-to-back
 #define ADS131M0X_POR_DELAY_MS  5U
 
 static uint16_t ads131m0xBuildWregCmd(const uint8_t addr, const uint8_t count);
@@ -23,8 +24,7 @@ Ads131m0xError ads131m0xInit(Ads131m0x* device,
 {
     if (device == NULL || config == NULL || hal == NULL)
         return ADS131M0X_ERROR_INVALID_ARG;
-    if (hal->spi_read == NULL || hal->spi_write == NULL ||
-        hal->cs_set == NULL || hal->delayMs == NULL)
+    if (hal->spi_transfer == NULL || hal->cs_set == NULL || hal->delayMs == NULL)
         return ADS131M0X_ERROR_INVALID_ARG;
 
     device->hal = *hal;
@@ -104,12 +104,14 @@ Ads131m0xError ads131m0xSendCommand(const Ads131m0x* const device,
     if (device == NULL)
         return ADS131M0X_ERROR_INVALID_ARG;
 
+    // Single frame: command in Word 0, rest zeros
     uint8_t tx[ADS131M0X_FRAME_SIZE_BYTES] = {0};
+    uint8_t rx[ADS131M0X_FRAME_SIZE_BYTES] = {0};
     tx[0] = (uint8_t)((uint16_t)cmd >> 8);
     tx[1] = (uint8_t)((uint16_t)cmd);
 
     device->hal.cs_set(0);
-    const uint8_t spi_err = device->hal.spi_write(tx, sizeof(tx));
+    const uint8_t spi_err = device->hal.spi_transfer(tx, rx, sizeof(tx));
     device->hal.cs_set(1);
 
     return spi_err ? ADS131M0X_ERROR_SPI : ADS131M0X_ERROR_OK;
@@ -126,7 +128,7 @@ Ads131m0xError ads131m0xWrite(const Ads131m0x* const device,
         return ADS131M0X_ERROR_NOT_INITIALIZED;
 
     device->hal.cs_set(0);
-    const uint8_t spi_err = device->hal.spi_write(buffer, length_bytes);
+    const uint8_t spi_err = device->hal.spi_transfer(buffer, NULL, length_bytes);
     device->hal.cs_set(1);
 
     return spi_err ? ADS131M0X_ERROR_SPI : ADS131M0X_ERROR_OK;
@@ -143,7 +145,7 @@ Ads131m0xError ads131m0xRead(const Ads131m0x* const device,
         return ADS131M0X_ERROR_NOT_INITIALIZED;
 
     device->hal.cs_set(0);
-    const uint8_t spi_err = device->hal.spi_read(buffer, length_bytes);
+    const uint8_t spi_err = device->hal.spi_transfer(NULL, buffer, length_bytes);
     device->hal.cs_set(1);
 
     return spi_err ? ADS131M0X_ERROR_SPI : ADS131M0X_ERROR_OK;
@@ -161,14 +163,19 @@ Ads131m0xError ads131m0xWriteRegister(const Ads131m0x* const device,
 
     const uint16_t cmd = ads131m0xBuildWregCmd((uint8_t)reg, 1);
 
-    uint8_t tx[ADS131M0X_FRAME_SIZE_BYTES] = {0};
+    // Two full frames in one CS assertion (Example 2 approach)
+    // Frame 1: WREG command (Word 0) + register data (Word 1) + padding
+    // Frame 2: NULL (zeros) — captures ACK response
+    uint8_t tx[ADS131M0X_TWO_FRAMES_BYTES] = {0};
+    uint8_t rx[ADS131M0X_TWO_FRAMES_BYTES] = {0};
     tx[0] = (uint8_t)(cmd >> 8);
     tx[1] = (uint8_t)(cmd);
     tx[3] = (uint8_t)(value >> 8);
     tx[4] = (uint8_t)(value);
+    // Bytes 18..35 are all zeros = NULL command for Frame 2
 
     device->hal.cs_set(0);
-    const uint8_t spi_err = device->hal.spi_write(tx, sizeof(tx));
+    const uint8_t spi_err = device->hal.spi_transfer(tx, rx, sizeof(tx));
     device->hal.cs_set(1);
 
     return spi_err ? ADS131M0X_ERROR_SPI : ADS131M0X_ERROR_OK;
@@ -185,31 +192,27 @@ Ads131m0xError ads131m0xReadRegister(const Ads131m0x* const device,
     if (!device->is_initialized)
         return ADS131M0X_ERROR_NOT_INITIALIZED;
 
-    // Frame N: send RREG command
+    // Two full frames in one CS assertion (Example 2 approach)
+    // Frame 1: RREG command in Word 0, rest zeros
+    // Frame 2: NULL command — response (register value) comes back in Word 0
     const uint16_t cmd = ads131m0xBuildRregCmd((uint8_t)reg, 1);
-    uint8_t tx[ADS131M0X_FRAME_SIZE_BYTES] = {0};
+
+    uint8_t tx[ADS131M0X_TWO_FRAMES_BYTES] = {0};
+    uint8_t rx[ADS131M0X_TWO_FRAMES_BYTES] = {0};
     tx[0] = (uint8_t)(cmd >> 8);
     tx[1] = (uint8_t)(cmd);
+    // Bytes 2..35 are all zeros = padding + NULL command for Frame 2
 
     device->hal.cs_set(0);
-    uint8_t spi_err = device->hal.spi_write(tx, sizeof(tx));
+    const uint8_t spi_err = device->hal.spi_transfer(tx, rx, sizeof(tx));
     device->hal.cs_set(1);
 
     if (spi_err)
         return ADS131M0X_ERROR_SPI;
 
-    // Frame N+1: clock out NULL, response in Word 0
-    static const uint8_t zeros[ADS131M0X_FRAME_SIZE_BYTES] = {0};
-    uint8_t rx[ADS131M0X_FRAME_SIZE_BYTES] = {0};
-
-    device->hal.cs_set(0);
-    spi_err = device->hal.spi_read(rx, sizeof(rx));
-    device->hal.cs_set(1);
-
-    if (spi_err)
-        return ADS131M0X_ERROR_SPI;
-
-    *value = (uint16_t)((rx[0] << 8) | rx[1]);
+    // Register data is in Word 0 of Frame 2 (byte offset 18)
+    *value = (uint16_t)((rx[ADS131M0X_FRAME_SIZE_BYTES] << 8)
+                      |  rx[ADS131M0X_FRAME_SIZE_BYTES + 1]);
     return ADS131M0X_ERROR_OK;
 }
 
