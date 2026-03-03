@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#define ADS131M0X_FRAME_SIZE_BYTES  18U ///< 6 words × 3 bytes
 #define ADS131M0X_POR_DELAY_MS  5U
 
 static uint16_t ads131m0xBuildWregCmd(const uint8_t addr, const uint8_t count);
@@ -102,12 +103,9 @@ Ads131m0xError ads131m0xSendCommand(const Ads131m0x* const device,
     if (device == NULL)
         return ADS131M0X_ERROR_INVALID_ARG;
 
-    const uint8_t tx[ADS131M0X_WORD_SIZE_BYTES] =
-    {
-        (uint8_t)((uint16_t)cmd >> 8),
-        (uint8_t)((uint16_t)cmd),
-        0x00U,
-    };
+    uint8_t tx[ADS131M0X_FRAME_SIZE_BYTES] = {0};
+    tx[0] = (uint8_t)((uint16_t)cmd >> 8);
+    tx[1] = (uint8_t)((uint16_t)cmd);
 
     const uint8_t spi_err = device->hal.spi_write(tx, sizeof(tx));
     return spi_err ? ADS131M0X_ERROR_SPI : ADS131M0X_ERROR_OK;
@@ -153,15 +151,11 @@ Ads131m0xError ads131m0xWriteRegister(const Ads131m0x* const device,
 
     const uint16_t cmd = ads131m0xBuildWregCmd((uint8_t)reg, 1);
 
-    const uint8_t tx[ADS131M0X_WORD_SIZE_BYTES * 2] =
-    {
-        (uint8_t)(cmd >> 8),
-        (uint8_t)(cmd),
-        0x00U,
-        (uint8_t)(value >> 8),
-        (uint8_t)(value),
-        0x00U,
-    };
+    uint8_t tx[ADS131M0X_FRAME_SIZE_BYTES] = {0};
+    tx[0] = (uint8_t)(cmd >> 8);
+    tx[1] = (uint8_t)(cmd);
+    tx[3] = (uint8_t)(value >> 8);
+    tx[4] = (uint8_t)(value);
 
     const uint8_t spi_err = device->hal.spi_write(tx, sizeof(tx));
     return spi_err ? ADS131M0X_ERROR_SPI : ADS131M0X_ERROR_OK;
@@ -180,19 +174,16 @@ Ads131m0xError ads131m0xReadRegister(const Ads131m0x* const device,
 
     // Frame 1: send RREG command
     const uint16_t cmd = ads131m0xBuildRregCmd((uint8_t)reg, 1);
-    const uint8_t tx[ADS131M0X_WORD_SIZE_BYTES] =
-    {
-        (uint8_t)(cmd >> 8),
-        (uint8_t)(cmd),
-        0x00U,
-    };
+    uint8_t tx[ADS131M0X_FRAME_SIZE_BYTES] = {0};
+    tx[0] = (uint8_t)(cmd >> 8);
+    tx[1] = (uint8_t)(cmd);
 
     uint8_t spi_err = device->hal.spi_write(tx, sizeof(tx));
     if (spi_err)
         return ADS131M0X_ERROR_SPI;
 
     // Frame 2: clock out response
-    uint8_t rx[ADS131M0X_WORD_SIZE_BYTES] = {0};
+    uint8_t rx[ADS131M0X_FRAME_SIZE_BYTES] = {0};
     spi_err = device->hal.spi_read(rx, sizeof(rx));
     if (spi_err)
         return ADS131M0X_ERROR_SPI;
