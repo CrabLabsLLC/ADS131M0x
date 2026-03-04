@@ -35,6 +35,31 @@ typedef enum
     ADS131M0X_ERROR_CRC           = -7,
 } ADS131M0XError;
 
+// ── Opcode Commands ──────────────────────────────────────────────────────────────
+// Datasheet: Section 8.5.1.10 (Table 8-11)
+typedef enum
+{
+    ADS131M0X_CMD_NULL    = 0x0000U,
+    ADS131M0X_CMD_RESET   = 0x0011U,
+    ADS131M0X_CMD_STANDBY = 0x0022U,
+    ADS131M0X_CMD_WAKEUP  = 0x0033U,
+    ADS131M0X_CMD_LOCK    = 0x0555U,
+    ADS131M0X_CMD_UNLOCK  = 0x0655U,
+    ADS131M0X_CMD_RREG    = 0xA000U,
+    ADS131M0X_CMD_WREG    = 0x6000U,
+} ADS131M0XCommand;
+
+// ── Command Responses ───────────────────────────────────────────────────────────
+typedef enum
+{
+    ADS131M0X_RESP_RESET_OK   = 0xFF24,
+    ADS131M0X_RESP_RESET_FAIL = 0x0011,
+    ADS131M0X_RESP_STANDBY    = 0x0022,
+    ADS131M0X_RESP_WAKEUP     = 0x0033,
+    ADS131M0X_RESP_LOCK       = 0x0555,
+    ADS131M0X_RESP_UNLOCK     = 0x0655,
+} ADS131M0XResponse;
+
 // ── Config structure ──────────────────────────────────────────────────
 typedef struct
 {
@@ -49,7 +74,8 @@ typedef struct
 	bool            is_initialized;
 	ADS131M0XWordLength word_length;
 	bool            is_input_crc_enabled;
-} ADS131M0XDevice;
+} ADS131M0X;
+
 
 #ifdef __cplusplus
 }
