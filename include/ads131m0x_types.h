@@ -12,6 +12,16 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
+// Datasheet Section: 8.6.3 (Table 8-16)
+// Description: Data word length selection
+typedef enum
+{
+    ADS131M0X_WLENGTH_16_BIT      = 0x00U,
+    ADS131M0X_WLENGTH_24_BIT      = 0x01U,  ///< Default
+    ADS131M0X_WLENGTH_32_BIT_ZERO = 0x02U,
+    ADS131M0X_WLENGTH_32_BIT_SIGN = 0x03U,
+} ADS131M0XWordLength;
+
 // ── Error codes ──────────────────────────────────────────────────────────────
 typedef enum
 {

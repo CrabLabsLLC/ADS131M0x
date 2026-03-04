@@ -8,6 +8,10 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "esp_log.h"
+
+static const char* TAG = "ads131m0x";
+
 #define ADS131M0X_WORD_SIZE_BYTES  3U
 #define ADS131M0X_FRAME_WORDS      6U
 #define ADS131M0X_FRAME_SIZE_BYTES (ADS131M0X_WORD_SIZE_BYTES * ADS131M0X_FRAME_WORDS)
@@ -39,7 +43,7 @@ static ADS131M0XError ads131m0xWrite(const ADS131M0XDevice* const dev, const voi
 /// Section 8.5.1.7 + Figure 8.18
 /// Section 8.5.1.10 (Table 8-11)
 
-static ADS131M0XError ads131m0xWriteRegisters(const ADS131M0XDevice* const dev, const uint8_t reg, const uint16_t* const values, const uint8_t count)
+ADS131M0XError ads131m0xWriteRegisters(const ADS131M0XDevice* const dev, const uint8_t reg, const uint16_t* const values, const uint8_t count)
 {
     if (count == 0U || count > ADS131M0X_MAX_REG_COUNT)
         return ADS131M0X_ERROR_INVALID_PARAM;
@@ -48,8 +52,8 @@ static ADS131M0XError ads131m0xWriteRegisters(const ADS131M0XDevice* const dev, 
 
     // Word 0: WREG command with register address and count
     const uint16_t cmd = ADS131M0X_CMD_WREG | ((uint16_t)reg << 7U) | (uint16_t)(count - 1U);
-    frame[0] = (uint8_t)(cmd >> 8U);
-    frame[1] = (uint8_t)(cmd & 0xFFU);
+    frame[0] = (uint8_t)(cmd >> 8U); // MSB: bits 15:8
+    frame[1] = (uint8_t)(cmd & 0xFFU); // LSTB: bits 7:0
 
     // Words 1..count: 16-bit register data packed into 24-bit words (MSB first)
     for (uint8_t i = 0; i < count; i++)
@@ -62,11 +66,7 @@ static ADS131M0XError ads131m0xWriteRegisters(const ADS131M0XDevice* const dev, 
     return ads131m0xWrite(dev, frame, sizeof(frame));
 }
 
-static ADS131M0XError ads131m0xReadRegisters(
-    const ADS131M0XDevice* const dev,
-    const uint8_t reg,
-    uint16_t* const values,
-    const uint8_t count)
+ADS131M0XError ads131m0xReadRegisters(const ADS131M0XDevice* const dev, const uint8_t reg, uint16_t* const values, const uint8_t count)
 {
     if (count == 0U || count > ADS131M0X_MAX_REG_COUNT)
         return ADS131M0X_ERROR_INVALID_PARAM;
@@ -91,6 +91,8 @@ static ADS131M0XError ads131m0xReadRegisters(
     if (err != ADS131M0X_ERROR_OK)
         return err;
 
+    ESP_LOG_BUFFER_HEX_LEVEL(TAG, rx, sizeof(rx), ESP_LOG_DEBUG);
+
     // Unpack 16-bit register values from 24-bit response words (MSB first)
     for (uint8_t i = 0; i < count; i++)
     {
@@ -101,12 +103,15 @@ static ADS131M0XError ads131m0xReadRegisters(
     return ADS131M0X_ERROR_OK;
 }
 
-static ADS131M0XError ads131m0xSendCommand(const ADS131M0XDevice* const dev, const uint16_t cmd)
+
+ADS131M0XError ads131m0xSendCommand(const ADS131M0XDevice* const dev, const uint16_t cmd)
 {
     uint8_t frame[ADS131M0X_FRAME_SIZE_BYTES] = {0};
 
     frame[0] = (uint8_t)(cmd >> 8U);
     frame[1] = (uint8_t)(cmd & 0xFFU);
+
+    ESP_LOG_BUFFER_HEX_LEVEL(TAG, frame, sizeof(frame), ESP_LOG_DEBUG);
 
     const ADS131M0XError err = ads131m0xWrite(dev, frame, sizeof(frame));
 
@@ -139,7 +144,7 @@ ADS131M0XError ads131m0xInit(ADS131M0XDevice* const dev, const ADS131M0XHAL* con
 
     /* Verify chip is present by reading ID register */
     uint16_t chip_id = 0;
-    ADS131M0XError err = ads131m0xReadRegister(dev, ADS131M0X_REG_ID, &chip_id);
+    ADS131M0XError err = ads131m0xReadRegisters(dev, ADS131M0X_REG_ID, &chip_id, 1U);
     if (err != ADS131M0X_ERROR_OK)
         return ADS131M0X_ERROR_COMM_FAIL;
 
@@ -158,5 +163,5 @@ ADS131M0XError ads131m0xReadChipId(const ADS131M0XDevice* const dev, uint16_t* c
     if (!dev->is_initialized)
         return ADS131M0X_ERROR_NOT_INIT;
 
-    return ads131m0xReadRegister(dev, ADS131M0X_REG_ID, id);
+    return ads131m0xReadRegisters(dev, ADS131M0X_REG_ID, id, 1U);
 }
