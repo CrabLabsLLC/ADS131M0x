@@ -166,6 +166,16 @@ typedef enum
     ADS131M0X_ERROR_CRC           = -7,
 } ADS131M0XError;
 
+// ── Opcode-Based Chips ──────────────────────────────────────────────────────────────
+typedef enum {
+    ADS131M0X_CMD_NULL       = 0x0000,
+    ADS131M0X_CMD_RESET      = 0x0011,
+    ADS131M0X_CMD_STANDBY    = 0x0022,
+    ADS131M0X_CMD_WAKEUP     = 0x0033,
+    ADS131M0X_CMD_LOCK       = 0x0555,
+    ADS131M0X_CMD_UNLOCK     = 0x0655
+} ADS131M0XOpCode;
+
 // ── Config structure ──────────────────────────────────────────────────
 typedef struct
 {
