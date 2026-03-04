@@ -6,6 +6,8 @@
 extern "C" {
 #endif
 
+#include "ads131m0x_hal.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>

@@ -14,12 +14,6 @@ extern "C" {
 #include "ads131m0x_types.h"
 #include "ads131m0x_registers.h"
 
-// ── Low-level bus access ────────────────────────────────────────────────
-ADS131M0XError ads131m0xRead(const ADS131M0XDevice* const dev, void* const data, const uint8_t length);
-ADS131M0XError ads131m0xWrite(const ADS131M0XDevice* const dev, const void* const data, const uint8_t length);
-ADS131M0XError ads131m0xWriteRegister(const ADS131M0XDevice* const dev, const uint8_t reg, const uint16_t value);
-ADS131M0XError ads131m0xReadRegister(const ADS131M0XDevice* const dev, const uint8_t reg, uint16_t* const value);
-
 // ── Lifecycle ───────────────────────────────────────────────────────────
 ADS131M0XError ads131m0xInit(ADS131M0XDevice* const dev, const ADS131M0XHAL* const hal);
 ADS131M0XError ads131m0xDeinit(ADS131M0XDevice* const dev);
@@ -35,7 +29,7 @@ ADS131M0XError ads131m0xEnableCrc(ADS131M0XDevice* const dev, const bool is_enab
 ADS131M0XError ads131m0xEnableChannel(ADS131M0XDevice* const dev, const uint8_t channel);
 ADS131M0XError ads131m0xDisableChannel(ADS131M0XDevice* const dev, const uint8_t channel);
 ADS131M0XError ads131m0xSetChannelGain(ADS131M0XDevice* const dev, const uint8_t channel, const ADS131M0XGain gain);
-ADS131M0XError ads131m0xSetChannelInput(ADS131M0XDevice* const dev, const uint8_t channel, const ADS131M0XInputMux input);
+ADS131M0XError ads131m0xSetChannelInput(ADS131M0XDevice* const dev, const uint8_t channel, const ADS131M0XMux input);
 
 // ── Data ────────────────────────────────────────────────────────────────
 ADS131M0XError ads131m0xReadAllChannels(const ADS131M0XDevice* const dev, int32_t* const samples);
