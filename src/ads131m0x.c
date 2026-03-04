@@ -90,6 +90,8 @@ ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t 
 
     err = ads131m0xRead(dev, rx, sizeof(rx));
 
+
+
     if (err != ADS131M0X_ERROR_OK)
         return err;
 
@@ -134,8 +136,6 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
     dev->hal.spiRead  = hal->spiRead;
     dev->hal.spiWrite = hal->spiWrite;
     dev->hal.delayMs  = hal->delayMs;
-    dev->hal.drdyGet  = hal->drdyGet;
-    dev->hal.sleepSet = hal->sleepSet;
 
     dev->word_length          = ADS131M0X_WLENGTH_24_BIT;
     dev->is_input_crc_enabled = false;
@@ -143,19 +143,21 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
     /* Give the ADC time to complete Power-On-Reset (POR) */
     dev->hal.delayMs(10);
 
-    /* Flush out any SPI bus garbage with an initial dummy frame */
-    ads131m0xSendCommand(dev, ADS131M0X_CMD_NULL);
-
     /* Verify chip is present by reading ID register */
     dev->is_initialized = true;
-    uint16_t chip_id = 0;
-    ADS131M0XError err = ads131m0xReadChipId(dev, &chip_id);
-    printf("Chip ID read: 0x%04X (err=%d)\n", chip_id, err);
-    if (err != ADS131M0X_ERROR_OK)
-    {
-        dev->is_initialized = false;
-        return err;
-    }
+
+	uint8_t frame[ADS131M0X_FRAME_SIZE_BYTES] = {0};
+	ads131m0xSendCommand(dev, ADS131M0X_CMD_RESET);
+	dev->hal.delayMs(RESET_DELAY_MS);
+	ads131m0xRead(dev, frame, sizeof(frame));
+    // uint16_t chip_id = 0;
+    // ADS131M0XError err = ads131m0xReadChipId(dev, &chip_id);
+    // printf("Chip ID read: 0x%04X (err=%d)\n", chip_id, err);
+    // if (err != ADS131M0X_ERROR_OK)
+    // {
+    //     dev->is_initialized = false;
+    //     return err;
+    // }
 
     return ADS131M0X_ERROR_OK;
 }
