@@ -13,6 +13,7 @@
 #define ADS131M0X_FRAME_SIZE_BYTES (ADS131M0X_WORD_SIZE_BYTES * ADS131M0X_FRAME_WORDS)
 #define RESET_DELAY_MS           1U // 1ms delay after reset
 #define ADS131M0X_NUM_CHANNELS   4U
+#define ADS131M0X_MAX_REG_COUNT (ADS131M0X_FRAME_WORDS - 1U) // Words 1-5 carry register data
 
 // ADS131M04 ID register: upper byte is 0x24 (datasheet Table 8-14)
 #define ID_UPPER_BYTE  0x24U
@@ -38,32 +39,42 @@ static ADS131M0XError ads131m0xWrite(const ADS131M0XDevice* const dev, const voi
 /// Section 8.5.1.7 + Figure 8.18
 /// Section 8.5.1.10 (Table 8-11)
 
-static ADS131M0XError ads131m0xWriteRegister(const ADS131M0XDevice* const dev, const uint8_t reg, const uint16_t value)
+static ADS131M0XError ads131m0xWriteRegisters(const ADS131M0XDevice* const dev, const uint8_t reg, const uint16_t* const values, const uint8_t count)
 {
+    if (count == 0U || count > ADS131M0X_MAX_REG_COUNT)
+        return ADS131M0X_ERROR_INVALID_PARAM;
+
     uint8_t frame[ADS131M0X_FRAME_SIZE_BYTES] = {0};
 
-    // Word 0: WREG command
-    const uint16_t cmd = ADS131M0X_CMD_WREG | ((uint16_t)reg << 7U);
+    // Word 0: WREG command with register address and count
+    const uint16_t cmd = ADS131M0X_CMD_WREG | ((uint16_t)reg << 7U) | (uint16_t)(count - 1U);
     frame[0] = (uint8_t)(cmd >> 8U);
     frame[1] = (uint8_t)(cmd & 0xFFU);
 
-    // Word 1: Register data
-    frame[3] = (uint8_t)(value >> 8U);
-    frame[4] = (uint8_t)(value & 0xFFU);
+    // Words 1..count: 16-bit register data packed into 24-bit words (MSB first)
+    for (uint8_t i = 0; i < count; i++)
+    {
+        const uint8_t offset = (i + 1U) * ADS131M0X_WORD_SIZE_BYTES;
+        frame[offset]     = (uint8_t)(values[i] >> 8U);
+        frame[offset + 1] = (uint8_t)(values[i] & 0xFFU);
+    }
 
-    // Words 2-5 are zeros (is_input_crc_enabled == false by default)
-
-    const ADS131M0XError err = ads131m0xWrite(dev, frame, sizeof(frame));
-
-    return err;
+    return ads131m0xWrite(dev, frame, sizeof(frame));
 }
 
-static ADS131M0XError ads131m0xReadRegister(const ADS131M0XDevice* const dev, const uint8_t reg, uint16_t* const value)
+static ADS131M0XError ads131m0xReadRegisters(
+    const ADS131M0XDevice* const dev,
+    const uint8_t reg,
+    uint16_t* const values,
+    const uint8_t count)
 {
+    if (count == 0U || count > ADS131M0X_MAX_REG_COUNT)
+        return ADS131M0X_ERROR_INVALID_PARAM;
+
     uint8_t frame[ADS131M0X_FRAME_SIZE_BYTES] = {0};
 
-    // Frame 1: send RREG command
-    const uint16_t cmd = ADS131M0X_CMD_RREG | ((uint16_t)reg << 7U);
+    // Frame 1: send RREG command with register address and count
+    const uint16_t cmd = ADS131M0X_CMD_RREG | ((uint16_t)reg << 7U) | (uint16_t)(count - 1U);
     frame[0] = (uint8_t)(cmd >> 8U);
     frame[1] = (uint8_t)(cmd & 0xFFU);
 
@@ -80,8 +91,12 @@ static ADS131M0XError ads131m0xReadRegister(const ADS131M0XDevice* const dev, co
     if (err != ADS131M0X_ERROR_OK)
         return err;
 
-    // Response word: 16-bit register data
-    *value = ((uint16_t)rx[0] << 8U) | (uint16_t)rx[1];
+    // Unpack 16-bit register values from 24-bit response words (MSB first)
+    for (uint8_t i = 0; i < count; i++)
+    {
+        const uint8_t offset = i * ADS131M0X_WORD_SIZE_BYTES;
+        values[i] = ((uint16_t)rx[offset] << 8U) | (uint16_t)rx[offset + 1];
+    }
 
     return ADS131M0X_ERROR_OK;
 }
