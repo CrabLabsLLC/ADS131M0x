@@ -48,9 +48,9 @@ static ADS131M0XError ads131m0xWriteRegister(const ADS131M0XDevice* const dev, c
 
     // Words 2-5 are zeros (is_input_crc_enabled == false by default)
 
-    dev->hal.csSet(true);
+    // dev->hal.csSet(true);
     const ADS131M0XError err = ads131m0xWrite(dev, frame, sizeof(frame));
-    dev->hal.csSet(false);
+    // dev->hal.csSet(false);
 
     return err;
 }
@@ -64,9 +64,9 @@ static ADS131M0XError ads131m0xReadRegister(const ADS131M0XDevice* const dev, co
     frame[0] = (uint8_t)(cmd >> 8U);
     frame[1] = (uint8_t)(cmd & 0xFFU);
 
-    dev->hal.csSet(true);
+    // dev->hal.csSet(true);
     ADS131M0XError err = ads131m0xWrite(dev, frame, sizeof(frame));
-    dev->hal.csSet(false);
+    // dev->hal.csSet(false);
 
     if (err != ADS131M0X_ERROR_OK)
         return err;
@@ -74,9 +74,9 @@ static ADS131M0XError ads131m0xReadRegister(const ADS131M0XDevice* const dev, co
     // Frame 2: send NULL, capture response
     uint8_t rx[ADS131M0X_FRAME_SIZE_BYTES] = {0};
 
-    dev->hal.csSet(true);
+    // dev->hal.csSet(true);
     err = ads131m0xRead(dev, rx, sizeof(rx));
-    dev->hal.csSet(false);
+    // dev->hal.csSet(false);
 
     if (err != ADS131M0X_ERROR_OK)
         return err;
@@ -94,9 +94,9 @@ static ADS131M0XError ads131m0xSendCommand(const ADS131M0XDevice* const dev, con
     frame[0] = (uint8_t)(cmd >> 8U);
     frame[1] = (uint8_t)(cmd & 0xFFU);
 
-    dev->hal.csSet(true);
+    // dev->hal.csSet(true);
     const ADS131M0XError err = ads131m0xWrite(dev, frame, sizeof(frame));
-    dev->hal.csSet(false);
+    // dev->hal.csSet(false);
 
     return err;
 }
@@ -111,14 +111,14 @@ ADS131M0XError ads131m0xInit(ADS131M0XDevice* const dev, const ADS131M0XHAL* con
     if (hal->spiRead == NULL || hal->spiWrite == NULL)
         return ADS131M0X_ERROR_INVALID_PARAM;
 
-    if (hal->csSet == NULL || hal->delayMs == NULL)
-        return ADS131M0X_ERROR_INVALID_PARAM;
+    // if (hal->csSet == NULL || hal->delayMs == NULL)
+    //     return ADS131M0X_ERROR_INVALID_PARAM;
 
     dev->is_initialized = false;
 
     dev->hal.spiRead  = hal->spiRead;
     dev->hal.spiWrite = hal->spiWrite;
-    dev->hal.csSet    = hal->csSet;
+    // dev->hal.csSet    = hal->csSet;
     dev->hal.delayMs  = hal->delayMs;
     dev->hal.resetSet = hal->resetSet;
     dev->hal.drdyGet  = hal->drdyGet;
@@ -169,9 +169,9 @@ ADS131M0XError ads131m0xReset(ADS131M0XDevice* const dev)
     // Send NULL to clock out the reset response
     uint8_t rx[FRAME_SIZE_BYTES] = {0};
 
-    dev->hal.csSet(true);
+    // dev->hal.csSet(true);
     err = ads131m0xRead(dev, rx, sizeof(rx));
-    dev->hal.csSet(false);
+    // dev->hal.csSet(false);
 
     if (err != ADS131M0X_ERROR_OK)
         return err;
