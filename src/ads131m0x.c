@@ -96,7 +96,7 @@ ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t 
     // Unpack 16-bit register values from 24-bit response words (MSB first)
     for (uint8_t i = 0; i < count; i++)
     {
-        const uint8_t offset = i * ADS131M0X_WORD_SIZE_BYTES;
+        const uint8_t offset = (i + 1U) * ADS131M0X_WORD_SIZE_BYTES;
         values[i] = ((uint16_t)rx[offset] << 8U) | (uint16_t)rx[offset + 1];
     }
 
@@ -139,6 +139,12 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
 
     dev->word_length          = ADS131M0X_WLENGTH_24_BIT;
     dev->is_input_crc_enabled = false;
+
+    /* Give the ADC time to complete Power-On-Reset (POR) */
+    dev->hal.delayMs(10);
+
+    /* Flush out any SPI bus garbage with an initial dummy frame */
+    ads131m0xSendCommand(dev, ADS131M0X_CMD_NULL);
 
     /* Verify chip is present by reading ID register */
     dev->is_initialized = true;
