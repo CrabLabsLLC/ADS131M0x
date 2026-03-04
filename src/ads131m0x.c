@@ -12,6 +12,11 @@
 #define ADS131M0X_FRAME_WORDS      6U
 #define ADS131M0X_FRAME_SIZE_BYTES (ADS131M0X_WORD_SIZE_BYTES * ADS131M0X_FRAME_WORDS)
 #define RESET_DELAY_MS           1U // 1ms delay after reset
+#define ADS131M0X_NUM_CHANNELS   4U
+
+// ADS131M04 ID register: upper byte is 0x24 (datasheet Table 8-14)
+#define ID_UPPER_BYTE  0x24U
+#define ID_UPPER_MASK  0xFF00U
 
 // ── Layer 1: Raw bus wrappers ─────────────────────────────────────────────
 static ADS131M0XError ads131m0xRead(const ADS131M0XDevice* const dev, void* const data, const uint8_t length)
@@ -111,20 +116,11 @@ ADS131M0XError ads131m0xInit(ADS131M0XDevice* const dev, const ADS131M0XHAL* con
     dev->hal.spiRead  = hal->spiRead;
     dev->hal.spiWrite = hal->spiWrite;
     dev->hal.delayMs  = hal->delayMs;
-    dev->hal.resetSet = hal->resetSet;
     dev->hal.drdyGet  = hal->drdyGet;
     dev->hal.sleepSet = hal->sleepSet;
 
     dev->word_length          = ADS131M0X_WLENGTH_24_BIT;
     dev->is_input_crc_enabled = false;
-
-    if (dev->hal.resetSet != NULL)
-    {
-        dev->hal.resetSet(false);
-        dev->hal.delayMs(RESET_DELAY_MS);
-        dev->hal.resetSet(true);
-        dev->hal.delayMs(RESET_DELAY_MS);
-    }
 
     /* Verify chip is present by reading ID register */
     uint16_t chip_id = 0;
@@ -136,5 +132,44 @@ ADS131M0XError ads131m0xInit(ADS131M0XDevice* const dev, const ADS131M0XHAL* con
         return ADS131M0X_ERROR_BAD_ID;
 
     dev->is_initialized = true;
+    return ADS131M0X_ERROR_OK;
+}
+
+ADS131M0XError ads131m0xReadAllChannels(const ADS131M0XDevice* const dev, int32_t* const samples)
+{
+    if (dev == NULL || samples == NULL)
+        return ADS131M0X_ERROR_INVALID_PARAM;
+
+    if (!dev->is_initialized)
+        return ADS131M0X_ERROR_NOT_INIT;
+
+    // Send NULL command, receive status + 4 channel words + CRC = 6 words
+    uint8_t rx[ADS131M0X_FRAME_SIZE_BYTES] = {0};
+    uint8_t tx[ADS131M0X_FRAME_SIZE_BYTES] = {0};
+
+    // Full-duplex: send zeros (NULL command), receive the data frame
+    ADS131M0XError err = ads131m0xWrite(dev, tx, sizeof(tx));
+    if (err != ADS131M0X_ERROR_OK)
+        return err;
+
+    err = ads131m0xRead(dev, rx, sizeof(rx));
+    if (err != ADS131M0X_ERROR_OK)
+        return err;
+
+    // Word 0 = status (skip), Words 1-4 = channel data (24-bit signed, MSB first)
+    for (uint8_t ch = 0; ch < ADS131M0X_NUM_CHANNELS; ch++)
+    {
+        const uint8_t offset = (ch + 1U) * ADS131M0X_WORD_SIZE_BYTES;
+        int32_t raw = ((int32_t)rx[offset] << 16) |
+                      ((int32_t)rx[offset + 1U] << 8) |
+                      ((int32_t)rx[offset + 2U]);
+
+        // Sign-extend from 24-bit to 32-bit
+        if (raw & 0x800000)
+            raw |= (int32_t)0xFF000000;
+
+        samples[ch] = raw;
+    }
+
     return ADS131M0X_ERROR_OK;
 }
