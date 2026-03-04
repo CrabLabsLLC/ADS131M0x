@@ -48,9 +48,7 @@ static ADS131M0XError ads131m0xWriteRegister(const ADS131M0XDevice* const dev, c
 
     // Words 2-5 are zeros (is_input_crc_enabled == false by default)
 
-    // dev->hal.csSet(true);
     const ADS131M0XError err = ads131m0xWrite(dev, frame, sizeof(frame));
-    // dev->hal.csSet(false);
 
     return err;
 }
@@ -64,9 +62,7 @@ static ADS131M0XError ads131m0xReadRegister(const ADS131M0XDevice* const dev, co
     frame[0] = (uint8_t)(cmd >> 8U);
     frame[1] = (uint8_t)(cmd & 0xFFU);
 
-    // dev->hal.csSet(true);
     ADS131M0XError err = ads131m0xWrite(dev, frame, sizeof(frame));
-    // dev->hal.csSet(false);
 
     if (err != ADS131M0X_ERROR_OK)
         return err;
@@ -74,9 +70,7 @@ static ADS131M0XError ads131m0xReadRegister(const ADS131M0XDevice* const dev, co
     // Frame 2: send NULL, capture response
     uint8_t rx[ADS131M0X_FRAME_SIZE_BYTES] = {0};
 
-    // dev->hal.csSet(true);
     err = ads131m0xRead(dev, rx, sizeof(rx));
-    // dev->hal.csSet(false);
 
     if (err != ADS131M0X_ERROR_OK)
         return err;
@@ -94,9 +88,7 @@ static ADS131M0XError ads131m0xSendCommand(const ADS131M0XDevice* const dev, con
     frame[0] = (uint8_t)(cmd >> 8U);
     frame[1] = (uint8_t)(cmd & 0xFFU);
 
-    // dev->hal.csSet(true);
     const ADS131M0XError err = ads131m0xWrite(dev, frame, sizeof(frame));
-    // dev->hal.csSet(false);
 
     return err;
 }
@@ -111,24 +103,21 @@ ADS131M0XError ads131m0xInit(ADS131M0XDevice* const dev, const ADS131M0XHAL* con
     if (hal->spiRead == NULL || hal->spiWrite == NULL)
         return ADS131M0X_ERROR_INVALID_PARAM;
 
-    // if (hal->csSet == NULL || hal->delayMs == NULL)
-    //     return ADS131M0X_ERROR_INVALID_PARAM;
+    if (hal->delayMs == NULL)
+        return ADS131M0X_ERROR_INVALID_PARAM;
 
     dev->is_initialized = false;
 
     dev->hal.spiRead  = hal->spiRead;
     dev->hal.spiWrite = hal->spiWrite;
-    // dev->hal.csSet    = hal->csSet;
     dev->hal.delayMs  = hal->delayMs;
     dev->hal.resetSet = hal->resetSet;
     dev->hal.drdyGet  = hal->drdyGet;
     dev->hal.sleepSet = hal->sleepSet;
 
-    // Section 8.6.3 (Table 8-16)
     dev->word_length          = ADS131M0X_WLENGTH_24_BIT;
     dev->is_input_crc_enabled = false;
 
-    // Section 8.4.1.2
     if (dev->hal.resetSet != NULL)
     {
         dev->hal.resetSet(false);
@@ -137,13 +126,13 @@ ADS131M0XError ads131m0xInit(ADS131M0XDevice* const dev, const ADS131M0XHAL* con
         dev->hal.delayMs(RESET_DELAY_MS);
     }
 
-    // Section 8.6.1 (Table 8-14)
-    uint16_t id = 0;
-    ADS131M0XError err = ads131m0xReadRegister(dev, ADS131M0X_REG_ID, &id);
+    /* Verify chip is present by reading ID register */
+    uint16_t chip_id = 0;
+    ADS131M0XError err = ads131m0xReadRegister(dev, ADS131M0X_REG_ID, &chip_id);
     if (err != ADS131M0X_ERROR_OK)
         return ADS131M0X_ERROR_COMM_FAIL;
 
-    if ((id & ID_UPPER_MASK) != ((uint16_t)ID_UPPER_BYTE << 8U))
+    if ((chip_id & ID_UPPER_MASK) != ((uint16_t)ID_UPPER_BYTE << 8U))
         return ADS131M0X_ERROR_BAD_ID;
 
     dev->is_initialized = true;
