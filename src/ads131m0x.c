@@ -22,9 +22,9 @@ ADS131M0XError ads131m0xRead(const ADS131M0X* const dev, void* const data, const
     if (dev->hal.spiRead(data, length) != 0)
         return ADS131M0X_ERROR_COMM_FAIL;
 
-	printf("rx: ");
-	for (uint8_t i = 0; i < length; i++) printf("%02X ", ((uint8_t*)data)[i]);
-	printf("\n");
+    printf("rx: ");
+    for (uint8_t i = 0; i < length; i++) printf("%02X ", ((uint8_t*)data)[i]);
+    printf("\n");
     return ADS131M0X_ERROR_OK;
 }
 
@@ -33,7 +33,7 @@ ADS131M0XError ads131m0xWrite(const ADS131M0X* const dev, const void* const data
     if (dev->hal.spiWrite(data, length) != 0)
         return ADS131M0X_ERROR_COMM_FAIL;
 
-	printf("tx: ");
+    printf("tx: ");
     for (uint8_t i = 0; i < length; i++) printf("%02X ", ((uint8_t*)data)[i]);
     printf("\n");
 
