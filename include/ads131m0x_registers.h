@@ -7,36 +7,111 @@ extern "C" {
 #endif
 
 // ── Register addresses ──────────────────────────────────────────────────────
-typedef enum
-{
-    ADS131M0X_REG_ID = 0x00U,     ///< Device ID (read-only)
-    ADS131M0X_REG_STATUS = 0x01U, ///< Device status
-    ADS131M0X_REG_MODE = 0x02U,   ///< Conversion mode
-    ADS131M0X_REG_CLOCK = 0x03U,  ///< Clock configuration
-    ADS131M0X_REG_GAIN1 = 0x04U,  ///< PGA gain CH0–CH3
-    ADS131M0X_REG_CFG = 0x06U,    ///< Global configuration
-} Ads131m0xRegister;
+// Datasheet: Section 8.6 - Table 8-12
+// Phase 1: Register Addresses
+#define ADS131M0X_REG_ID             0x00U
+#define ADS131M0X_REG_STATUS         0x01U
+#define ADS131M0X_REG_MODE           0x02U
+#define ADS131M0X_REG_CLOCK          0x03U
+#define ADS131M0X_REG_GAIN           0x04U
+// 05h is reserved
+#define ADS131M0X_REG_CFG            0x06U
+#define ADS131M0X_REG_THRSHLD_MSB    0x07U
+#define ADS131M0X_REG_THRSHLD_LSB    0x08U
 
-// ── Command opcodes (16-bit; shift left 8 to form 24-bit frame word) ────────
-typedef enum
-{
-    ADS131M0X_CMD_NULL = 0x0000U, ///< No-op / clock out pending response / listening
-    ADS131M0X_CMD_RESET = 0x0011U,   ///< Software reset
-    ADS131M0X_CMD_STANDBY = 0x0022U, ///< Enter standby
-    ADS131M0X_CMD_WAKEUP = 0x0033U,  ///< Exit standby
-    ADS131M0X_CMD_LOCK = 0x0555U,    ///< Lock register writes
-    ADS131M0X_CMD_UNLOCK = 0x0666U,  ///< Unlock register writes
-    ADS131M0X_CMD_RREG = 0xA000U,    ///< Read register base opcode
-    ADS131M0X_CMD_WREG = 0x6000U,    ///< Write register base opcode
-} Ads131m0xCommand;
+// Channel 0 Registers
+#define ADS131M0X_REG_CH0_CFG        0x09U
+#define ADS131M0X_REG_CH0_OCAL_MSB   0x0AU
+#define ADS131M0X_REG_CH0_OCAL_LSB   0x0BU
+#define ADS131M0X_REG_CH0_GCAL_MSB   0x0CU
+#define ADS131M0X_REG_CH0_GCAL_LSB   0x0DU
 
-// ── ID register (0x00) bitfields ────────────────────────────────────────────
-#define ADS131M0X_ID_CHANCNT_SHIFT  8U
-#define ADS131M0X_ID_CHANCNT_MASK   0x0F00U
+// Channel 1 Registers
+#define ADS131M0X_REG_CH1_CFG        0x0EU
+#define ADS131M0X_REG_CH1_OCAL_MSB   0x0FU
+#define ADS131M0X_REG_CH1_OCAL_LSB   0x10U
+#define ADS131M0X_REG_CH1_GCAL_MSB   0x11U
+#define ADS131M0X_REG_CH1_GCAL_LSB   0x12U
 
-// ── STATUS register (0x01) bitfields ────────────────────────────────────────
-#define ADS131M0X_STATUS_LOCK_SHIFT  15U
-#define ADS131M0X_STATUS_LOCK_MASK   0x8000U
+// Channel 2 Registers
+#define ADS131M0X_REG_CH2_CFG        0x13U
+#define ADS131M0X_REG_CH2_OCAL_MSB   0x14U
+#define ADS131M0X_REG_CH2_OCAL_LSB   0x15U
+#define ADS131M0X_REG_CH2_GCAL_MSB   0x16U
+#define ADS131M0X_REG_CH2_GCAL_LSB   0x17U
+
+// Channel 3 Registers
+#define ADS131M0X_REG_CH3_CFG        0x18U
+#define ADS131M0X_REG_CH3_OCAL_MSB   0x19U
+#define ADS131M0X_REG_CH3_OCAL_LSB   0x1AU
+#define ADS131M0X_REG_CH3_GCAL_MSB   0x1BU
+#define ADS131M0X_REG_CH3_GCAL_LSB   0x1CU
+
+// 1Dh through 3Dh are reserved
+#define ADS131M0X_REG_REGMAP_CRC     0x3EU
+// 3Fh is reserved
+
+
+// Phase 2: Shifts and Masks
+// MODE Register (Table 8-16)
+#define ADS131M0X_MODE_WLENGTH_SHIFT   8U
+#define ADS131M0X_MODE_WLENGTH_MASK    (0x03U << ADS131M0X_MODE_WLENGTH_SHIFT)
+
+#define ADS131M0X_MODE_DRDY_SEL_SHIFT  2U
+#define ADS131M0X_MODE_DRDY_SEL_MASK   (0x03U << ADS131M0X_MODE_DRDY_SEL_SHIFT)
+
+// CLOCK Register (Table 8-17)
+#define ADS131M0X_CLOCK_OSR_SHIFT      2U
+#define ADS131M0X_CLOCK_OSR_MASK       (0x07U << ADS131M0X_CLOCK_OSR_SHIFT)
+
+#define ADS131M0X_CLOCK_PWR_SHIFT      0U
+#define ADS131M0X_CLOCK_PWR_MASK       (0x03U << ADS131M0X_CLOCK_PWR_SHIFT)
+
+// GAIN1 Register (Table 8-18)
+#define ADS131M0X_GAIN1_PGAGAIN3_SHIFT 12U
+#define ADS131M0X_GAIN1_PGAGAIN3_MASK  (0x07U << ADS131M0X_GAIN1_PGAGAIN3_SHIFT)
+
+#define ADS131M0X_GAIN1_PGAGAIN2_SHIFT 8U
+#define ADS131M0X_GAIN1_PGAGAIN2_MASK  (0x07U << ADS131M0X_GAIN1_PGAGAIN2_SHIFT)
+
+#define ADS131M0X_GAIN1_PGAGAIN1_SHIFT 4U
+#define ADS131M0X_GAIN1_PGAGAIN1_MASK  (0x07U << ADS131M0X_GAIN1_PGAGAIN1_SHIFT)
+
+#define ADS131M0X_GAIN1_PGAGAIN0_SHIFT 0U
+#define ADS131M0X_GAIN1_PGAGAIN0_MASK  (0x07U << ADS131M0X_GAIN1_PGAGAIN0_SHIFT)
+
+// CFG Register (Table 8-20)
+#define ADS131M0X_CFG_GC_DLY_SHIFT     9U
+#define ADS131M0X_CFG_GC_DLY_MASK      (0x0FU << ADS131M0X_CFG_GC_DLY_SHIFT)
+
+#define ADS131M0X_CFG_CD_NUM_SHIFT     4U
+#define ADS131M0X_CFG_CD_NUM_MASK      (0x07U << ADS131M0X_CFG_CD_NUM_SHIFT)
+
+#define ADS131M0X_CFG_CD_LEN_SHIFT     1U
+#define ADS131M0X_CFG_CD_LEN_MASK      (0x07U << ADS131M0X_CFG_CD_LEN_SHIFT)
+
+// THRSHLD_LSB Register (Table 8-22)
+#define ADS131M0X_THRSHLD_LSB_DCBLOCK_SHIFT 0U
+#define ADS131M0X_THRSHLD_LSB_DCBLOCK_MASK  (0x0FU << ADS131M0X_THRSHLD_LSB_DCBLOCK_SHIFT)
+
+// CHn_CFG Registers (Shared layout across CH0-CH3)
+#define ADS131M0X_CH_CFG_PHASE_SHIFT   6U
+#define ADS131M0X_CH_CFG_PHASE_MASK    (0x03FFU << ADS131M0X_CH_CFG_PHASE_SHIFT)
+
+#define ADS131M0X_CH_CFG_MUX_SHIFT     0U
+#define ADS131M0X_CH_CFG_MUX_MASK      (0x03U << ADS131M0X_CH_CFG_MUX_SHIFT)
+
+
+// Phase 3: Commands and Expected Responses
+// Datasheet: Section 8.5.1.10 (Table 8-11)
+#define ADS131M0X_CMD_NULL    0x0000U
+#define ADS131M0X_CMD_RESET   0x0011U
+#define ADS131M0X_CMD_STANDBY 0x0022U
+#define ADS131M0X_CMD_WAKEUP  0x0033U
+#define ADS131M0X_CMD_LOCK    0x0555U
+#define ADS131M0X_CMD_UNLOCK  0x0655U
+#define ADS131M0X_CMD_RREG    0xA000U
+#define ADS131M0X_CMD_WREG    0x6000U
 
 #ifdef __cplusplus
 }
