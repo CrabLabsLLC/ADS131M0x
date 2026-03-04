@@ -145,6 +145,7 @@ ADS131M0XError ads131m0xInit(ADS131M0XDevice* const dev, const ADS131M0XHAL* con
     /* Verify chip is present by reading ID register */
     uint16_t chip_id = 0;
     ADS131M0XError err = ads131m0xReadRegisters(dev, ADS131M0X_REG_ID, &chip_id, 1U);
+    ESP_LOGI("ADS131M0X", "Chip ID read: 0x%04X (err=%d)", chip_id, err);
     if (err != ADS131M0X_ERROR_OK)
         return ADS131M0X_ERROR_COMM_FAIL;
 
