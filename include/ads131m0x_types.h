@@ -25,14 +25,14 @@ typedef enum
 // ── Error codes ──────────────────────────────────────────────────────────────
 typedef enum
 {
-    ADS131M0X_ERROR_OK            =  0,   ///< Success
-    ADS131M0X_ERROR_GENERAL       = -1,
-    ADS131M0X_ERROR_INVALID_PARAM = -2,
-    ADS131M0X_ERROR_COMM_FAIL     = -3,
-    ADS131M0X_ERROR_BAD_ID        = -4,
-    ADS131M0X_ERROR_TIMEOUT       = -5,
-    ADS131M0X_ERROR_NOT_INIT      = -6,
-    ADS131M0X_ERROR_CRC           = -7,
+    ADS131M0X_ERROR_OK
+    ADS131M0X_ERROR_GENERAL
+    ADS131M0X_ERROR_INVALID_PARAM
+    ADS131M0X_ERROR_COMM_FAIL
+    ADS131M0X_ERROR_BAD_ID
+    ADS131M0X_ERROR_TIMEOUT
+    ADS131M0X_ERROR_NOT_INIT
+    ADS131M0X_ERROR_CRC
 } ADS131M0XError;
 
 // ── Opcode Commands ──────────────────────────────────────────────────────────────
