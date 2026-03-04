@@ -16,19 +16,19 @@ extern "C" {
 // Description: Data word length selection
 typedef enum
 {
-    ADS131M0X_WLENGTH_16_BIT      = 0x00U,  ///< 16 bit
-    ADS131M0X_WLENGTH_24_BIT      = 0x01U,  ///< 24 bits (default)
-    ADS131M0X_WLENGTH_32_BIT_ZERO = 0x02U,  ///< 32 bits; LSB zero padding
-    ADS131M0X_WLENGTH_32_BIT_SIGN = 0x03U,  ///< 32 bits; MSB sign extension
+    ADS131M0X_WLENGTH_16_BIT      = 0x00U,
+    ADS131M0X_WLENGTH_24_BIT      = 0x01U,  ///< Default
+    ADS131M0X_WLENGTH_32_BIT_ZERO = 0x02U,
+    ADS131M0X_WLENGTH_32_BIT_SIGN = 0x03U,
 } ADS131M0XWordLength;
 
 // Datasheet Section: 8.6.3 (Table 8-16)
 // Description: DRDY pin signal source selection
 typedef enum
 {
-    ADS131M0X_DRDY_SEL_MOST_LAGGING = 0x00U,  ///< Most lagging enabled channel (default)
-    ADS131M0X_DRDY_SEL_LOGIC_OR     = 0x01U,  ///< Logic OR of all enabled channels
-    ADS131M0X_DRDY_SEL_MOST_LEADING = 0x02U,  ///< Most leading enabled channel
+    ADS131M0X_DRDY_SEL_MOST_LAGGING = 0x00U,  ///< Default
+    ADS131M0X_DRDY_SEL_LOGIC_OR     = 0x01U,
+    ADS131M0X_DRDY_SEL_MOST_LEADING = 0x02U,
 } ADS131M0XDrdySel;
 
 // Datasheet Section: 8.6.4 (Table 8-17)
@@ -146,22 +146,22 @@ typedef enum
 typedef enum
 {
     ADS131M0X_MUX_ANALOG_IN = 0x00U,  ///< AINnP and AINnN (default)
-    ADS131M0X_MUX_SHORTED   = 0x01U,  ///< ADC inputs shorted
-    ADS131M0X_MUX_TEST_POS  = 0x02U,  ///< Positive DC test signal
-    ADS131M0X_MUX_TEST_NEG  = 0x03U,  ///< Negative DC test signal
+    ADS131M0X_MUX_SHORTED   = 0x01U,
+    ADS131M0X_MUX_TEST_POS  = 0x02U,
+    ADS131M0X_MUX_TEST_NEG  = 0x03U,
 } ADS131M0XMux;
 
 // ── Error codes ──────────────────────────────────────────────────────────────
 typedef enum
 {
     ADS131M0X_ERROR_OK            =  0,   ///< Success
-    ADS131M0X_ERROR_GENERAL       = -1,   ///< Unspecified failure
-    ADS131M0X_ERROR_INVALID_PARAM = -2,   ///< NULL pointer or out-of-range argument
-    ADS131M0X_ERROR_COMM_FAIL     = -3,   ///< SPI transaction failed
-    ADS131M0X_ERROR_BAD_ID        = -4,   ///< Chip ID register doesn't match expected value
-    ADS131M0X_ERROR_TIMEOUT       = -5,   ///< Timed operation didn't complete
-    ADS131M0X_ERROR_NOT_INIT      = -6,   ///< Driver not initialized (call init first)
-    ADS131M0X_ERROR_CRC           = -7,   ///< Communication or register map CRC error
+    ADS131M0X_ERROR_GENERAL       = -1,
+    ADS131M0X_ERROR_INVALID_PARAM = -2,
+    ADS131M0X_ERROR_COMM_FAIL     = -3,
+    ADS131M0X_ERROR_BAD_ID        = -4,
+    ADS131M0X_ERROR_TIMEOUT       = -5,
+    ADS131M0X_ERROR_NOT_INIT      = -6,
+    ADS131M0X_ERROR_CRC           = -7,
 } ADS131M0XError;
 
 // ── Config structure ──────────────────────────────────────────────────

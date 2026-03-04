@@ -11,6 +11,7 @@
 #define ADS131M0X_WORD_SIZE_BYTES  3U
 #define ADS131M0X_FRAME_WORDS      6U
 #define ADS131M0X_FRAME_SIZE_BYTES (ADS131M0X_WORD_SIZE_BYTES * ADS131M0X_FRAME_WORDS)
+#define RESET_DELAY_MS           1U // 1ms delay after reset
 
 // ── Layer 1: Raw bus wrappers ─────────────────────────────────────────────
 static ADS131M0XError ads131m0xRead(const ADS131M0XDevice* const dev, void* const data, const uint8_t length)
@@ -28,7 +29,9 @@ static ADS131M0XError ads131m0xWrite(const ADS131M0XDevice* const dev, const voi
 }
 
 // ── Layer 2: Register access ──────────────────────────────────────────────
-// Datasheet: Section 8.5.1.7 + Figure 8.18
+// Datasheet:
+/// Section 8.5.1.7 + Figure 8.18
+/// Section 8.5.1.10 (Table 8-11)
 
 static ADS131M0XError ads131m0xWriteRegister(const ADS131M0XDevice* const dev, const uint8_t reg, const uint16_t value)
 {
@@ -80,6 +83,107 @@ static ADS131M0XError ads131m0xReadRegister(const ADS131M0XDevice* const dev, co
 
     // Response word: 16-bit register data
     *value = ((uint16_t)rx[0] << 8U) | (uint16_t)rx[1];
+
+    return ADS131M0X_ERROR_OK;
+}
+
+static ADS131M0XError ads131m0xSendCommand(const ADS131M0XDevice* const dev, const uint16_t cmd)
+{
+    uint8_t frame[ADS131M0X_FRAME_SIZE_BYTES] = {0};
+
+    frame[0] = (uint8_t)(cmd >> 8U);
+    frame[1] = (uint8_t)(cmd & 0xFFU);
+
+    dev->hal.csSet(true);
+    const ADS131M0XError err = ads131m0xWrite(dev, frame, sizeof(frame));
+    dev->hal.csSet(false);
+
+    return err;
+}
+
+// ── Layer 3: High-level API ──────────────────────────────────────────────
+
+ADS131M0XError ads131m0xInit(ADS131M0XDevice* const dev, const ADS131M0XHAL* const hal)
+{
+    if (dev == NULL || hal == NULL)
+        return ADS131M0X_ERROR_INVALID_PARAM;
+
+    if (hal->spiRead == NULL || hal->spiWrite == NULL)
+        return ADS131M0X_ERROR_INVALID_PARAM;
+
+    if (hal->csSet == NULL || hal->delayMs == NULL)
+        return ADS131M0X_ERROR_INVALID_PARAM;
+
+    dev->is_initialized = false;
+
+    dev->hal.spiRead  = hal->spiRead;
+    dev->hal.spiWrite = hal->spiWrite;
+    dev->hal.csSet    = hal->csSet;
+    dev->hal.delayMs  = hal->delayMs;
+    dev->hal.resetSet = hal->resetSet;
+    dev->hal.drdyGet  = hal->drdyGet;
+    dev->hal.sleepSet = hal->sleepSet;
+
+    // Section 8.6.3 (Table 8-16)
+    dev->word_length          = ADS131M0X_WLENGTH_24_BIT;
+    dev->is_input_crc_enabled = false;
+
+    // Section 8.4.1.2
+    if (dev->hal.resetSet != NULL)
+    {
+        dev->hal.resetSet(false);
+        dev->hal.delayMs(RESET_DELAY_MS);
+        dev->hal.resetSet(true);
+        dev->hal.delayMs(RESET_DELAY_MS);
+    }
+
+    // Section 8.6.1 (Table 8-14)
+    uint16_t id = 0;
+    ADS131M0XError err = ads131m0xReadRegister(dev, ADS131M0X_REG_ID, &id);
+    if (err != ADS131M0X_ERROR_OK)
+        return ADS131M0X_ERROR_COMM_FAIL;
+
+    if ((id & ID_UPPER_MASK) != ((uint16_t)ID_UPPER_BYTE << 8U))
+        return ADS131M0X_ERROR_BAD_ID;
+
+    dev->is_initialized = true;
+    return ADS131M0X_ERROR_OK;
+}
+
+ADS131M0XError ads131m0xReset(ADS131M0XDevice* const dev)
+{
+    if (dev == NULL)
+        return ADS131M0X_ERROR_INVALID_PARAM;
+
+    if (!dev->is_initialized)
+        return ADS131M0X_ERROR_NOT_INIT;
+
+    // Section 8.5.1.10.2
+    ADS131M0XError err = ads131m0xSendCommand(dev, ADS131M0X_CMD_RESET);
+    if (err != ADS131M0X_ERROR_OK)
+        return err;
+
+    // Section 6.8
+    dev->hal.delayMs(RESET_DELAY_MS);
+
+    // Send NULL to clock out the reset response
+    uint8_t rx[FRAME_SIZE_BYTES] = {0};
+
+    dev->hal.csSet(true);
+    err = ads131m0xRead(dev, rx, sizeof(rx));
+    dev->hal.csSet(false);
+
+    if (err != ADS131M0X_ERROR_OK)
+        return err;
+
+    // Section 8.5.1.10.2
+    const uint16_t response = ((uint16_t)rx[0] << 8U) | (uint16_t)rx[1];
+    if (response != ADS131M0X_RSP_RESET)
+        return ADS131M0X_ERROR_COMM_FAIL;
+
+    // Restore defaults in device handle
+    dev->word_length          = ADS131M0X_WLENGTH_24_BIT;
+    dev->is_input_crc_enabled = false;
 
     return ADS131M0X_ERROR_OK;
 }
