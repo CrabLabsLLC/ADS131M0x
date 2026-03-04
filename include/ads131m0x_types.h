@@ -10,9 +10,6 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
-#define ADS131M0X_WORD_SIZE_BYTES  3U
-#define ADS131M0X_MAX_CHANNELS    8U
-
 // ── Register fields with named options ──────────────────────────────────────────────────────
 
 // Datasheet Section: 8.6.3 (Table 8-16)
