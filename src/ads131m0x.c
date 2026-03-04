@@ -16,12 +16,8 @@
 #define ADS131M0X_NUM_CHANNELS   4U
 #define ADS131M0X_MAX_REG_COUNT (ADS131M0X_FRAME_WORDS - 1U) // Words 1-5 carry register data
 
-// ADS131M04 ID register: upper byte is 0x24 (datasheet Table 8-14)
-#define ID_UPPER_BYTE  0x24U
-#define ID_UPPER_MASK  0xFF00U
-
 // ── Layer 1: Raw bus wrappers ─────────────────────────────────────────────
-static ADS131M0XError ads131m0xRead(const ADS131M0X* const dev, void* const data, const uint8_t length)
+ADS131M0XError ads131m0xRead(const ADS131M0X* const dev, void* const data, const uint8_t length)
 {
     if (dev->hal.spiRead(data, length) != 0)
         return ADS131M0X_ERROR_COMM_FAIL;
@@ -32,7 +28,7 @@ static ADS131M0XError ads131m0xRead(const ADS131M0X* const dev, void* const data
     return ADS131M0X_ERROR_OK;
 }
 
-static ADS131M0XError ads131m0xWrite(const ADS131M0X* const dev, const void* const data, const uint8_t length)
+ADS131M0XError ads131m0xWrite(const ADS131M0X* const dev, const void* const data, const uint8_t length)
 {
     if (dev->hal.spiWrite(data, length) != 0)
         return ADS131M0X_ERROR_COMM_FAIL;
@@ -145,16 +141,16 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
     dev->is_input_crc_enabled = false;
 
     /* Verify chip is present by reading ID register */
+    dev->is_initialized = true;
     uint16_t chip_id = 0;
-    ADS131M0XError err = ads131m0xReadRegisters(dev, ADS131M0X_REG_ID, &chip_id, 1U);
+    ADS131M0XError err = ads131m0xReadChipId(dev, &chip_id);
     printf("Chip ID read: 0x%04X (err=%d)\n", chip_id, err);
     if (err != ADS131M0X_ERROR_OK)
-        return ADS131M0X_ERROR_COMM_FAIL;
+    {
+        dev->is_initialized = false;
+        return err;
+    }
 
-    if ((chip_id & ID_UPPER_MASK) != ((uint16_t)ID_UPPER_BYTE << 8U))
-        return ADS131M0X_ERROR_BAD_ID;
-
-    dev->is_initialized = true;
     return ADS131M0X_ERROR_OK;
 }
 
@@ -166,6 +162,12 @@ ADS131M0XError ads131m0xReadChipId(const ADS131M0X* const dev, uint16_t* const i
     if (!dev->is_initialized)
         return ADS131M0X_ERROR_NOT_INIT;
 
-	ADS131M0XError err = ads131m0xReadRegisters(dev, ADS131M0X_REG_ID, id, 1U);
-	return err;
+    ADS131M0XError err = ads131m0xReadRegisters(dev, ADS131M0X_REG_ID, id, 1U);
+    if (err != ADS131M0X_ERROR_OK)
+        return ADS131M0X_ERROR_COMM_FAIL;
+
+    if ((*id & ADS131M0X_ID_UPPER_MASK) != ((uint16_t)ADS131M0X_ID_UPPER_BYTE << 8U))
+        return ADS131M0X_ERROR_BAD_ID;
+
+    return ADS131M0X_ERROR_OK;
 }
