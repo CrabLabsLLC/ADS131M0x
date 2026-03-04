@@ -135,41 +135,13 @@ ADS131M0XError ads131m0xInit(ADS131M0XDevice* const dev, const ADS131M0XHAL* con
     return ADS131M0X_ERROR_OK;
 }
 
-ADS131M0XError ads131m0xReadAllChannels(const ADS131M0XDevice* const dev, int32_t* const samples)
+ADS131M0XError ads131m0xReadChipId(const ADS131M0XDevice* const dev, uint16_t* const id)
 {
-    if (dev == NULL || samples == NULL)
+    if (dev == NULL || id == NULL)
         return ADS131M0X_ERROR_INVALID_PARAM;
 
     if (!dev->is_initialized)
         return ADS131M0X_ERROR_NOT_INIT;
 
-    // Send NULL command, receive status + 4 channel words + CRC = 6 words
-    uint8_t rx[ADS131M0X_FRAME_SIZE_BYTES] = {0};
-    uint8_t tx[ADS131M0X_FRAME_SIZE_BYTES] = {0};
-
-    // Full-duplex: send zeros (NULL command), receive the data frame
-    ADS131M0XError err = ads131m0xWrite(dev, tx, sizeof(tx));
-    if (err != ADS131M0X_ERROR_OK)
-        return err;
-
-    err = ads131m0xRead(dev, rx, sizeof(rx));
-    if (err != ADS131M0X_ERROR_OK)
-        return err;
-
-    // Word 0 = status (skip), Words 1-4 = channel data (24-bit signed, MSB first)
-    for (uint8_t ch = 0; ch < ADS131M0X_NUM_CHANNELS; ch++)
-    {
-        const uint8_t offset = (ch + 1U) * ADS131M0X_WORD_SIZE_BYTES;
-        int32_t raw = ((int32_t)rx[offset] << 16) |
-                      ((int32_t)rx[offset + 1U] << 8) |
-                      ((int32_t)rx[offset + 2U]);
-
-        // Sign-extend from 24-bit to 32-bit
-        if (raw & 0x800000)
-            raw |= (int32_t)0xFF000000;
-
-        samples[ch] = raw;
-    }
-
-    return ADS131M0X_ERROR_OK;
+    return ads131m0xReadRegister(dev, ADS131M0X_REG_ID, id);
 }
