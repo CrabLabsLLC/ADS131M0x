@@ -125,10 +125,7 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
     if (dev == NULL || hal == NULL)
         return ADS131M0X_ERROR_INVALID_PARAM;
 
-    if (hal->spiRead == NULL || hal->spiWrite == NULL)
-        return ADS131M0X_ERROR_INVALID_PARAM;
-
-    if (hal->delayMs == NULL)
+    if (hal->spiRead == NULL || hal->spiWrite == NULL || hal->delayMs == NULL)
         return ADS131M0X_ERROR_INVALID_PARAM;
 
     dev->is_initialized = false;
