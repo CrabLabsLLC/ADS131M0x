@@ -64,7 +64,7 @@ typedef enum
 typedef struct
 {
     bool is_input_crc_enabled;       ///< True if RX_CRC_EN is set
-    ADS131M0XWordLength word_length; ///< Required to frame SPI transactions correctly
+    ADS131M0XWordLength word_length; ///< Default: 24-bit
 } ADS131M0XConfig;
 
 // ── Device handle ──────────────────────────────────────────────────
