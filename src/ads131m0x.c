@@ -12,7 +12,7 @@
 #define ADS131M0X_WORD_SIZE_BYTES  3U
 #define ADS131M0X_FRAME_WORDS      6U
 #define ADS131M0X_FRAME_SIZE_BYTES (ADS131M0X_WORD_SIZE_BYTES * ADS131M0X_FRAME_WORDS)
-#define RESET_DELAY_MS           1U // 1ms delay after reset
+#define RESET_DELAY_MS           10U // 10ms delay after reset
 #define ADS131M0X_NUM_CHANNELS   4U
 #define ADS131M0X_MAX_REG_COUNT (ADS131M0X_FRAME_WORDS - 1U) // Words 1-5 carry register data
 
