@@ -25,6 +25,8 @@ ADS131M0XError ads131m0xWriteRegisters(const ADS131M0X* const dev, const uint8_t
 ADS131M0XError ads131m0xRead(const ADS131M0X* const dev, void* const data, const uint8_t length);
 ADS131M0XError ads131m0xWrite(const ADS131M0X* const dev, const void* const data, const uint8_t length);
 
+const char* ads131m0xErrorToString(ADS131M0XError err);
+
 #ifdef __cplusplus
 }
 #endif

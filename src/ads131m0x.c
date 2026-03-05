@@ -176,3 +176,19 @@ ADS131M0XError ads131m0xReadChipId(const ADS131M0X* const dev, uint16_t* const i
 
     return ADS131M0X_ERROR_OK;
 }
+
+const char* ads131m0xErrorToString(ADS131M0XError err)
+{
+    switch (err)
+    {
+        case ADS131M0X_ERROR_OK:            return "ADS131M0X_ERROR_OK";
+        case ADS131M0X_ERROR_GENERAL:       return "ADS131M0X_ERROR_GENERAL";
+        case ADS131M0X_ERROR_INVALID_PARAM: return "ADS131M0X_ERROR_INVALID_PARAM";
+        case ADS131M0X_ERROR_COMM_FAIL:     return "ADS131M0X_ERROR_COMM_FAIL";
+        case ADS131M0X_ERROR_BAD_ID:        return "ADS131M0X_ERROR_BAD_ID";
+        case ADS131M0X_ERROR_TIMEOUT:       return "ADS131M0X_ERROR_TIMEOUT";
+        case ADS131M0X_ERROR_NOT_INIT:      return "ADS131M0X_ERROR_NOT_INIT";
+        case ADS131M0X_ERROR_CRC:           return "ADS131M0X_ERROR_CRC";
+        default:                            return "UNKNOWN_ERROR";
+    }
+}
