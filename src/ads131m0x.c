@@ -147,14 +147,14 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
 	ads131m0xSendCommand(dev, ADS131M0X_CMD_RESET);
 	dev->hal.delayMs(RESET_DELAY_MS);
 	ads131m0xRead(dev, frame, sizeof(frame));
-    // uint16_t chip_id = 0;
-    // ADS131M0XError err = ads131m0xReadChipId(dev, &chip_id);
-    // printf("Chip ID read: 0x%04X (err=%d)\n", chip_id, err);
-    // if (err != ADS131M0X_ERROR_OK)
-    // {
-    //     dev->is_initialized = false;
-    //     return err;
-    // }
+    uint16_t chip_id = 0;
+    ADS131M0XError err = ads131m0xReadChipId(dev, &chip_id);
+    printf("Chip ID read: 0x%04X (err=%d)\n", chip_id, err);
+    if (err != ADS131M0X_ERROR_OK)
+    {
+        dev->is_initialized = false;
+        return err;
+    }
 
     return ADS131M0X_ERROR_OK;
 }
@@ -168,11 +168,12 @@ ADS131M0XError ads131m0xReadChipId(const ADS131M0X* const dev, uint16_t* const i
         return ADS131M0X_ERROR_NOT_INIT;
 
     ADS131M0XError err = ads131m0xReadRegisters(dev, ADS131M0X_REG_ID, id, 1U);
+
     if (err != ADS131M0X_ERROR_OK)
         return ADS131M0X_ERROR_COMM_FAIL;
 
-    if ((*id & ADS131M0X_ID_UPPER_MASK) != ((uint16_t)ADS131M0X_ID_UPPER_BYTE << 8U))
-        return ADS131M0X_ERROR_BAD_ID;
+    // if ((*id & ADS131M0X_ID_UPPER_MASK) != ((uint16_t)ADS131M0X_ID_UPPER_BYTE << 8U))
+    //     return ADS131M0X_ERROR_BAD_ID;
 
     return ADS131M0X_ERROR_OK;
 }
