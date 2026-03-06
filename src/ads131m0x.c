@@ -1,7 +1,4 @@
 #include "ads131m0x.h"
-#include "ads131m0x_registers.h"
-#include "ads131m0x_types.h"
-#include "ads131m0x_hal.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -9,12 +6,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#define ADS131M0X_WORD_SIZE_BYTES  3U
-#define ADS131M0X_FRAME_WORDS      6U
-#define ADS131M0X_FRAME_SIZE_BYTES (ADS131M0X_WORD_SIZE_BYTES * ADS131M0X_FRAME_WORDS)
-#define RESET_DELAY_MS           10U // 10ms delay after reset
-#define ADS131M0X_NUM_CHANNELS   4U
-#define ADS131M0X_MAX_REG_COUNT (ADS131M0X_FRAME_WORDS - 1U) // Words 1-5 carry register data
+#define RESET_DELAY_MS          10U
+#define ADS131M0X_MAX_REG_COUNT (ADS131M0X_FRAME_WORDS - 1U)
 
 // ── Layer 1: Raw bus wrappers ─────────────────────────────────────────────
 ADS131M0XError ads131m0xRead(const ADS131M0X* const dev, void* const data, const uint8_t length)
@@ -50,7 +43,7 @@ ADS131M0XError ads131m0xWriteRegisters(const ADS131M0X* const dev, const uint8_t
     if (count == 0U || count > ADS131M0X_MAX_REG_COUNT)
         return ADS131M0X_ERROR_INVALID_PARAM;
 
-    uint8_t frame[ADS131M0X_FRAME_SIZE_BYTES] = {0};
+    uint8_t frame[ADS131M0X_FRAME_SIZE_24BIT] = {0};
 
     // Word 0: WREG command with register address and count
     const uint16_t cmd = ADS131M0X_CMD_WREG | ((uint16_t)reg << 7U) | (uint16_t)(count - 1U);
@@ -60,7 +53,7 @@ ADS131M0XError ads131m0xWriteRegisters(const ADS131M0X* const dev, const uint8_t
     // Words 1..count: 16-bit register data packed into 24-bit words (MSB first)
     for (uint8_t i = 0; i < count; i++)
     {
-        const uint8_t offset = (i + 1U) * ADS131M0X_WORD_SIZE_BYTES;
+        const uint8_t offset = (i + 1U) * ADS131M0X_WORD_SIZE_24BIT;
         frame[offset]     = (uint8_t)(values[i] >> 8U);
         frame[offset + 1] = (uint8_t)(values[i] & 0xFFU);
     }
@@ -73,7 +66,7 @@ ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t 
     if (count == 0U || count > ADS131M0X_MAX_REG_COUNT)
         return ADS131M0X_ERROR_INVALID_PARAM;
 
-    uint8_t frame[ADS131M0X_FRAME_SIZE_BYTES] = {0};
+    uint8_t frame[ADS131M0X_FRAME_SIZE_24BIT] = {0};
 
     // Frame 1: send RREG command with register address and count
     const uint16_t cmd = ADS131M0X_CMD_RREG | ((uint16_t)reg << 7U) | (uint16_t)(count - 1U);
@@ -86,7 +79,7 @@ ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t 
         return err;
 
     // Frame 2: send NULL, capture response
-    uint8_t rx[ADS131M0X_FRAME_SIZE_BYTES] = {0};
+    uint8_t rx[ADS131M0X_FRAME_SIZE_24BIT] = {0};
 
     err = ads131m0xRead(dev, rx, sizeof(rx));
 
@@ -98,7 +91,7 @@ ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t 
     // Unpack 16-bit register values from 24-bit response words (MSB first)
     for (uint8_t i = 0; i < count; i++)
     {
-        const uint8_t offset = (i + 1U) * ADS131M0X_WORD_SIZE_BYTES;
+        const uint8_t offset = (i + 1U) * ADS131M0X_WORD_SIZE_24BIT;
         values[i] = ((uint16_t)rx[offset] << 8U) | (uint16_t)rx[offset + 1];
     }
 
@@ -108,7 +101,7 @@ ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t 
 
 ADS131M0XError ads131m0xSendCommand(const ADS131M0X* const dev, const ADS131M0XCommand cmd)
 {
-    uint8_t frame[ADS131M0X_FRAME_SIZE_BYTES] = {0};
+    uint8_t frame[ADS131M0X_FRAME_SIZE_24BIT] = {0};
 
     frame[0] = (uint8_t)(cmd >> 8U);
     frame[1] = (uint8_t)(cmd & 0xFFU);
@@ -132,6 +125,7 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
 
     dev->hal.spiRead  = hal->spiRead;
     dev->hal.spiWrite = hal->spiWrite;
+    dev->hal.drdyGet  = hal->drdyGet;
     dev->hal.delayMs  = hal->delayMs;
 
     dev->word_length          = ADS131M0X_WLENGTH_24_BIT;
@@ -143,18 +137,18 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
     /* Verify chip is present by reading ID register */
     dev->is_initialized = true;
 
-	uint8_t frame[ADS131M0X_FRAME_SIZE_BYTES] = {0};
+	uint8_t frame[ADS131M0X_FRAME_SIZE_24BIT] = {0};
 	ads131m0xSendCommand(dev, ADS131M0X_CMD_RESET);
 	dev->hal.delayMs(RESET_DELAY_MS);
 	ads131m0xRead(dev, frame, sizeof(frame));
-    // uint16_t chip_id = 0;
-    // ADS131M0XError err = ads131m0xReadChipId(dev, &chip_id);
-    // printf("Chip ID read: 0x%04X (err=%d)\n", chip_id, err);
-    // if (err != ADS131M0X_ERROR_OK)
-    // {
-    //     dev->is_initialized = false;
-    //     return err;
-    // }
+    uint16_t chip_id = 0;
+    ADS131M0XError err = ads131m0xReadChipId(dev, &chip_id);
+    printf("Chip ID read: 0x%04X (err=%d)\n", chip_id, err);
+    if (err != ADS131M0X_ERROR_OK)
+    {
+        dev->is_initialized = false;
+        return err;
+    }
 
     return ADS131M0X_ERROR_OK;
 }

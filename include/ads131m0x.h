@@ -10,7 +10,6 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
-#include "ads131m0x.h"
 #include "ads131m0x_types.h"
 #include "ads131m0x_registers.h"
 
