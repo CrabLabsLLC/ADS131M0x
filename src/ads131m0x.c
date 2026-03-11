@@ -91,7 +91,7 @@ ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t 
     // Unpack 16-bit register values from 24-bit response words (MSB first)
     for (uint8_t i = 0; i < count; i++)
     {
-        const uint8_t offset = (i + 1U) * ADS131M0X_WORD_SIZE_24BIT;
+        const uint8_t offset = i * ADS131M0X_WORD_SIZE_24BIT;
         values[i] = ((uint16_t)rx[offset] << 8U) | (uint16_t)rx[offset + 1];
     }
 
