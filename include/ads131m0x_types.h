@@ -25,6 +25,30 @@ typedef enum
 	ADS131M0X_ERROR_ID_MISMATCH
 } ADS131M0XError;
 
+// ── SPI Opcodes ──────────────────────────────────────────────────────────────
+typedef enum
+{
+    ADS131M0X_CMD_NULL    = 0x0000U,
+    ADS131M0X_CMD_RESET   = 0x0011U,
+    ADS131M0X_CMD_STANDBY = 0x0022U,
+    ADS131M0X_CMD_WAKEUP  = 0x0033U,
+    ADS131M0X_CMD_LOCK    = 0x0555U,
+    ADS131M0X_CMD_UNLOCK  = 0x0655U,
+    ADS131M0X_CMD_RREG    = 0xA000U,
+    ADS131M0X_CMD_WREG    = 0x6000U,
+} ADS131M0XCommand;
+
+// ── Command Expected Responses ────────────────────────────────────────────────────────
+typedef enum
+{
+    ADS131M0X_RESP_RESET_OK   = 0xFF24U,
+    ADS131M0X_RESP_RESET_FAIL = 0x0011U,
+    ADS131M0X_RESP_STANDBY    = 0x0022U,
+    ADS131M0X_RESP_WAKEUP     = 0x0033U,
+    ADS131M0X_RESP_LOCK       = 0x0555U,
+    ADS131M0X_RESP_UNLOCK     = 0x0655U,
+} ADS131M0XResponse;
+
 // ── Power modes ──────────────────────────────────────────────────────────────
 typedef enum
 {
@@ -46,105 +70,131 @@ typedef enum
 	ADS131M0X_OSR_16384 = 0x07U
 } ADS131M0XOSR;
 
-// ── SPI Word size ──────────────────────────────────────────────────────────────
+// ── SPI Word length ──────────────────────────────────────────────────────────────
 typedef enum
 {
-	ADS131M0X_WORD_16BIT = 0x00U,
-	ADS131M0X_WORD_24BIT = 0x01U, // Default
-	ADS131M0X_WORD_32BIT_ZERO_PAD = 0x02U,
-	ADS131M0X_WORD_32BIT_SIGN_EXT = 0x03U
-} ADS131M0XWordSize;
-
-#define CHANNEL_COUNT (4)   // ADS131M04 -> 4 Channels
-
-#if ((CHANNEL_COUNT < 1) || (CHANNEL_COUNT > 8))
-    #error Invalid channel count configured in 'ads131m0x.h'.
-#endif
-
-// ── SPI Opcodes ──────────────────────────────────────────────────────────────
-#define ADS131M0X_OPCODE_NULL           ((uint16_t) 0x0000)
-#define ADS131M0X_OPCODE_RESET          ((uint16_t) 0x0011)
-#define ADS131M0X_OPCODE_STANDBY        ((uint16_t) 0x0022)
-#define ADS131M0X_OPCODE_WAKEUP         ((uint16_t) 0x0033)
-#define ADS131M0X_OPCODE_LOCK           ((uint16_t) 0x0555)
-#define ADS131M0X_OPCODE_UNLOCK         ((uint16_t) 0x0655)
-#define ADS131M0X_OPCODE_RREG           ((uint16_t) 0xA000)
-#define ADS131M0X_OPCODE_WREG           ((uint16_t) 0x6000)
-
-// Build RREG/WREG opcodes with address: opcode | (addr << 7)
-#define ADS131M0X_OPCODE_RREG_ADDR(a)   ((uint16_t)(ADS131M0X_OPCODE_RREG | ((uint16_t)(a) << 7)))
-#define ADS131M0X_OPCODE_WREG_ADDR(a)   ((uint16_t)(ADS131M0X_OPCODE_WREG | ((uint16_t)(a) << 7)))
-
-typedef enum
-{
-    ADS131M0X_WLENGTH_16_BIT      = 0x00U,
-    ADS131M0X_WLENGTH_24_BIT      = 0x01U,  ///< Default
+    ADS131M0X_WLENGTH_16_BIT = 0x00U,
+    ADS131M0X_WLENGTH_24_BIT = 0x01U,  ///< Default
     ADS131M0X_WLENGTH_32_BIT_ZERO = 0x02U,
     ADS131M0X_WLENGTH_32_BIT_SIGN = 0x03U,
 } ADS131M0XWordLength;
 
-
-
-/* Enable this define statement to use CRC on DIN... */
-//#define ENABLE_CRC_IN
-
-/* Select CRC type */
-#define CRC_CCITT
-//#define CRC_ANSI
-
-/* Disable assertions when not in the CCS "Debug" configuration */
-#ifndef _DEBUG
-    #define NDEBUG
-#endif
-
-#define ADS131M0X_FRAME_WORDS       6U
-#define ADS131M0X_WORD_SIZE_24BIT   3U
-#define ADS131M0X_FRAME_SIZE_24BIT  (ADS131M0X_WORD_SIZE_24BIT * ADS131M0X_FRAME_WORDS)
-
-// ── Error codes ──────────────────────────────────────────────────────────────
+// ── PGA Gain per channel ──────────────────────────────────────────────────────────────
 typedef enum
 {
-    ADS131M0X_ERROR_OK,
-    ADS131M0X_ERROR_GENERAL,
-    ADS131M0X_ERROR_INVALID_PARAM,
-    ADS131M0X_ERROR_COMM_FAIL,
-    ADS131M0X_ERROR_BAD_ID,
-    ADS131M0X_ERROR_TIMEOUT,
-    ADS131M0X_ERROR_NOT_INIT,
-    ADS131M0X_ERROR_CRC,
-} ADS131M0XError;
+	ADS131M0X_GAIN_1 = 0x00U, // Default
+	ADS131M0X_GAIN_2 = 0x01U,
+	ADS131M0X_GAIN_4 = 0x02U,
+	ADS131M0X_GAIN_8 = 0x03U,
+	ADS131M0X_GAIN_16 = 0x04U,
+	ADS131M0X_GAIN_32 = 0x05U,
+	ADS131M0X_GAIN_64 = 0x06U,
+	ADS131M0X_GAIN_128 = 0x07U
+} ADS131M0XGain;
 
+// ── Channel input MUX ──────────────────────────────────────────────────────────────
 typedef enum
 {
-    ADS131M0X_CMD_NULL    = 0x0000U,
-    ADS131M0X_CMD_RESET   = 0x0011U,
-    ADS131M0X_CMD_STANDBY = 0x0022U,
-    ADS131M0X_CMD_WAKEUP  = 0x0033U,
-    ADS131M0X_CMD_LOCK    = 0x0555U,
-    ADS131M0X_CMD_UNLOCK  = 0x0655U,
-    ADS131M0X_CMD_RREG    = 0xA000U,
-    ADS131M0X_CMD_WREG    = 0x6000U,
-} ADS131M0XCommand;
+	ADS131M0X_MUX_NORMAL = 0x00U, // Default
+	ADS131M0X_MUX_SHORTED = 0x01U,
+	ADS131M0X_MUX_POSITIVE_DCM = 0x02U,
+	ADS131M0X_MUX_NEGATIVE_DCM = 0x03U
+} ADS131M0XMux;
 
-// ── Command Responses ────────────────────────────────────────────────────────
+// ── Global DC-block high-pass filter coefficient ──────────────────────────────────────────────────────────────
 typedef enum
 {
-    ADS131M0X_RESP_RESET_OK   = 0xFF24U,
-    ADS131M0X_RESP_RESET_FAIL = 0x0011U,
-    ADS131M0X_RESP_STANDBY    = 0x0022U,
-    ADS131M0X_RESP_WAKEUP     = 0x0033U,
-    ADS131M0X_RESP_LOCK       = 0x0555U,
-    ADS131M0X_RESP_UNLOCK     = 0x0655U,
-} ADS131M0XResponse;
+	ADS131M0X_DCBLOCK_DISABLED = 0x00U,
+	ADS131M0X_DCBLOCK_1_4 = 0x01U,
+	ADS131M0X_DCBLOCK_1_8 = 0x02U,
+	ADS131M0X_DCBLOCK_1_16 = 0x03U,
+	ADS131M0X_DCBLOCK_1_32 = 0x04U,
+	ADS131M0X_DCBLOCK_1_64 = 0x05U,
+	ADS131M0X_DCBLOCK_1_128 = 0x06U,
+	ADS131M0X_DCBLOCK_1_256 = 0x07U,
+	ADS131M0X_DCBLOCK_1_512 = 0x08U,
+	ADS131M0X_DCBLOCK_1_1024 = 0x09U,
+	ADS131M0X_DCBLOCK_1_2048 = 0x0AU,
+	ADS131M0X_DCBLOCK_1_4096 = 0x0BU,
+	ADS131M0X_DCBLOCK_1_8192 = 0x0CU,
+	ADS131M0X_DCBLOCK_1_16384 = 0x0DU,
+	ADS131M0X_DCBLOCK_1_32768 = 0x0EU,
+	ADS131M0X_DCBLOCK_1_65536 = 0x0FU
+} ADS131M0XDcBlock;
 
-// ── Device handle ────────────────────────────────────────────────────────────
+// ── Global-chop Delay ──────────────────────────────────────────────────────────────
+typedef enum
+{
+	ADS131M0X_GC_DLY_2 = 0x00U,
+	ADS131M0X_GC_DLY_4 = 0x01U,
+	ADS131M0X_GC_DLY_8 = 0x02U,
+	ADS131M0X_GC_DLY_16 = 0x03U,
+	ADS131M0X_GC_DLY_32 = 0x04U,
+	ADS131M0X_GC_DLY_64 = 0x05U,
+	ADS131M0X_GC_DLY_128 = 0x06U,
+	ADS131M0X_GC_DLY_256 = 0x07U,
+	ADS131M0X_GC_DLY_512 = 0x08U,
+	ADS131M0X_GC_DLY_1024 = 0x09U,
+	ADS131M0X_GC_DLY_2048 = 0x0AU,
+	ADS131M0X_GC_DLY_4096 = 0x0BU,
+	ADS131M0X_GC_DLY_8192 = 0x0CU,
+	ADS131M0X_GC_DLY_16384 = 0x0DU,
+	ADS131M0X_GC_DLY_32768 = 0x0EU,
+	ADS131M0X_GC_DLY_65536 = 0x0FU
+} ADS131M0XGlobalChopDelay;
+
+// ── CRC type ──────────────────────────────────────────────────────────────
+typedef enum
+{
+	ADS131M0X_CRC_CCITT = 0x00U,
+	ADS131M0X_CRC_ANSI = 0x01U // Default
+} ADS131M0XCRCType;
+
+// ── Global device configuration ──────────────────────────────────────────────────────────────
 typedef struct
 {
-    ADS131M0XHAL       hal;
-    bool               is_initialized;
-    ADS131M0XWordLength word_length;
-    bool               is_input_crc_enabled;
+	ADS131M0XPowerMode powerMode;
+	ADS131M0XOSR osr;
+	ADS131M0XWordLength wordLength;
+	ADS131M0XCRCType crcType; // Default: ADS131M0X_CRC_ANSI
+	bool globalChopEnable; // Default: false
+	ADS131M0XGlobalChopDelay globalChopDelay;
+	ADS131M0XDcBlock dcBlock; // Default: ADS131M0X_DCBLOCK_DISABLED
+} ADS131M0XGlobalConfig;
+
+typedef struct
+{
+    int  (*spiRead)(void* const data, const uint8_t length);
+    int  (*spiWrite)(const void* const data, const uint8_t length);
+    bool (*drdyGet)(void);
+    void (*delayMs)(const uint32_t delayMs);
+} ADS131M0XHAL;
+
+// ── Device handle ──────────────────────────────────────────────────────────────
+typedef struct
+{
+	ADS131M0XHAL hal;
+	bool isInitialized;
+	uint16_t registerMap[64];
+	ADS131M0XWordLength currentWordLength;
+    bool isLocked; // Guards writeRegisters()
+
+    struct
+    {
+        bool isEnabled;
+        ADS131M0XCRCType currentType;
+    } crc;
+
 } ADS131M0X;
+
+// ── Data struct ──────────────────────────────────────────────────────────────
+typedef struct
+{
+	uint16_t status; // STATUS register
+	int32_t channelData[ADS131M0X_CHANNEL_COUNT];
+	uint16_t crc;
+	bool crcValid;
+} ADS131M0XData;
 
 #ifdef __cplusplus
 }
