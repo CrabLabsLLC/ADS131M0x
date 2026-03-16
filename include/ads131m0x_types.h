@@ -12,7 +12,6 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
-// Datasheet Section 8.6.3 (Table 8-16)
 typedef enum
 {
     ADS131M0X_WLENGTH_16_BIT      = 0x00U,
@@ -21,8 +20,24 @@ typedef enum
     ADS131M0X_WLENGTH_32_BIT_SIGN = 0x03U,
 } ADS131M0XWordLength;
 
-// Datasheet Section 8.5.1.7-8: Frame geometry
-#define ADS131M0X_NUM_CHANNELS      4U
+#define CHANNEL_COUNT (4)   // ADS131M04 -> 4 Channels
+
+#if ((CHANNEL_COUNT < 1) || (CHANNEL_COUNT > 8))
+    #error Invalid channel count configured in 'ads131m0x.h'.
+#endif
+
+/* Enable this define statement to use CRC on DIN... */
+//#define ENABLE_CRC_IN
+
+/* Select CRC type */
+#define CRC_CCITT
+//#define CRC_ANSI
+
+/* Disable assertions when not in the CCS "Debug" configuration */
+#ifndef _DEBUG
+    #define NDEBUG
+#endif
+
 #define ADS131M0X_FRAME_WORDS       6U
 #define ADS131M0X_WORD_SIZE_24BIT   3U
 #define ADS131M0X_FRAME_SIZE_24BIT  (ADS131M0X_WORD_SIZE_24BIT * ADS131M0X_FRAME_WORDS)
@@ -40,7 +55,6 @@ typedef enum
     ADS131M0X_ERROR_CRC,
 } ADS131M0XError;
 
-// Datasheet Section 8.5.1.10 (Table 8-11)
 typedef enum
 {
     ADS131M0X_CMD_NULL    = 0x0000U,
