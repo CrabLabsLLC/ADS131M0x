@@ -103,22 +103,22 @@ typedef enum
 typedef enum
 {
 	ADS131M0X_DCBLOCK_DISABLED = 0x00U, ///< Default
-	ADS131M0X_DCBLOCK_1_4      = 0x01U,
-	ADS131M0X_DCBLOCK_1_8      = 0x02U,
-	ADS131M0X_DCBLOCK_1_16     = 0x03U,
-	ADS131M0X_DCBLOCK_1_32     = 0x04U,
-	ADS131M0X_DCBLOCK_1_64     = 0x05U,
-	ADS131M0X_DCBLOCK_1_128    = 0x06U,
-	ADS131M0X_DCBLOCK_1_256    = 0x07U,
-	ADS131M0X_DCBLOCK_1_512    = 0x08U,
-	ADS131M0X_DCBLOCK_1_1024   = 0x09U,
-	ADS131M0X_DCBLOCK_1_2048   = 0x0AU,
-	ADS131M0X_DCBLOCK_1_4096   = 0x0BU,
-	ADS131M0X_DCBLOCK_1_8192   = 0x0CU,
-	ADS131M0X_DCBLOCK_1_16384  = 0x0DU,
-	ADS131M0X_DCBLOCK_1_32768  = 0x0EU,
-	ADS131M0X_DCBLOCK_1_65536  = 0x0FU,
-} ADS131M0XDcBlock;
+	ADS131M0X_DCBLOCK_1_4      = 0x01U, ///< HPF a f_sampling/4
+	ADS131M0X_DCBLOCK_1_8      = 0x02U, ///< HPF a f_sampling/8
+	ADS131M0X_DCBLOCK_1_16     = 0x03U, ///< HPF a f_sampling/16
+	ADS131M0X_DCBLOCK_1_32     = 0x04U, ///< HPF a f_sampling/32
+	ADS131M0X_DCBLOCK_1_64     = 0x05U, ///< HPF a f_sampling/64
+	ADS131M0X_DCBLOCK_1_128    = 0x06U, ///< HPF a f_sampling/128
+	ADS131M0X_DCBLOCK_1_256    = 0x07U, ///< HPF a f_sampling/256
+	ADS131M0X_DCBLOCK_1_512    = 0x08U, ///< HPF a f_sampling/512
+	ADS131M0X_DCBLOCK_1_1024   = 0x09U, ///< HPF a f_sampling/1024
+	ADS131M0X_DCBLOCK_1_2048   = 0x0AU, ///< HPF a f_sampling/2048
+	ADS131M0X_DCBLOCK_1_4096   = 0x0BU, ///< HPF a f_sampling/4096
+	ADS131M0X_DCBLOCK_1_8192   = 0x0CU, ///< HPF a f_sampling/8192
+	ADS131M0X_DCBLOCK_1_16384  = 0x0DU, ///< HPF a f_sampling/16384
+	ADS131M0X_DCBLOCK_1_32768  = 0x0EU, ///< HPF a f_sampling/32768
+	ADS131M0X_DCBLOCK_1_65536  = 0x0FU, ///< HPF a f_sampling/65536
+} ADS131M0XDCBlock;
 
 // ── Global-chop delay (CFG.GC_DLY) ──────────────────────────────────────────
 typedef enum
@@ -144,9 +144,9 @@ typedef enum
 // ── CRC polynomial (MODE.CRC_TYPE) ───────────────────────────────────────────
 typedef enum
 {
-	ADS131M0X_CRC_CCITT = 0x00U, ///< x^16 + x^12 + x^5 + 1
-	ADS131M0X_CRC_ANSI  = 0x01U, ///< x^16 + x^15 + x^2 + 1
-} ADS131M0XCRCType;
+	ADS131M0X_CRC_POLYNOMIAL_CCITT = 0x00U, ///< x^16 + x^12 + x^5 + 1 = 0x1021
+	ADS131M0X_CRC_POLYNOMIAL_ANSI  = 0x01U, ///< x^16 + x^15 + x^2 + 1 = 0x8005
+} ADS131M0XCRCPolynomial;
 
 // ── DRDY pin signal source (MODE.DRDY_SEL) ───────────────────────────────────
 typedef enum
@@ -154,14 +154,14 @@ typedef enum
 	ADS131M0X_DRDY_SEL_MOST_LAGGING = 0x00U, ///< Default
 	ADS131M0X_DRDY_SEL_ALL_OR       = 0x01U,
 	ADS131M0X_DRDY_SEL_MOST_LEADING = 0x02U,
-} ADS131M0XDrdySel;
+} ADS131M0XDataReadySelect;
 
 // ── DRDY pin output format (MODE.DRDY_FMT) ───────────────────────────────────
 typedef enum
 {
 	ADS131M0X_DRDY_FMT_LOGIC_LOW = 0x00U, ///< default
 	ADS131M0X_DRDY_FMT_PULSE     = 0x01U,
-} ADS131M0XDrdyFmt;
+} ADS131M0XDataReadyFormat;
 
 // ── Current-detect consecutive over-threshold sample count (CFG.CD_NUM) ──────
 typedef enum
@@ -174,7 +174,7 @@ typedef enum
 	ADS131M0X_CD_NUM_32  = 0x05U,
 	ADS131M0X_CD_NUM_64  = 0x06U,
 	ADS131M0X_CD_NUM_128 = 0x07U,
-} ADS131M0XCdNum;
+} ADS131M0XCurrentDetectNum;
 
 // ── Current-detect cycle window length (CFG.CD_LEN) ─────────────────────────
 typedef enum
@@ -187,46 +187,56 @@ typedef enum
 	ADS131M0X_CD_LEN_32  = 0x05U,
 	ADS131M0X_CD_LEN_64  = 0x06U,
 	ADS131M0X_CD_LEN_128 = 0x07U,
-} ADS131M0XCdLen;
+} ADS131M0XCurrentDetectLen;
 
 // ── Global configuration ──────────────────────────────────────────────────────
 typedef struct
 {
 	// CLOCK register
-	ADS131M0XPowerMode mode;
-	ADS131M0XOSR osr;
-	bool turbo_mode_is_enabled;
+	ADS131M0XPowerMode power_mode;
+	ADS131M0XOSR oversampling_ratio;
+	bool turbo_mode;
 
 	// MODE register — SPI framing
 	ADS131M0XWordLength word_length;
-	bool reg_crc_is_enabled;
-	bool rx_crc_is_enabled;
-	ADS131M0XCRCType crc_type;
-	bool timeout_is_enabled;
+	bool spi_timeout_enabled;
+	
+	struct 
+	{
+		bool output_enabled;
+		bool input_enabled;
+		ADS131M0XCRCPolynomial polynomial;
+	} crc;
 
 	// MODE register — DRDY output pin
-	ADS131M0XDrdySel drdy_sel;
-	bool drdy_hiz_is_enabled;
-	ADS131M0XDrdyFmt drdy_fmt;
+	struct
+	{
+		ADS131M0XDataReadySelect selection;
+		bool hiz;
+		ADS131M0XDataReadyFormat format;
+	} data_ready;
 
 	// CFG register — global-chop
-	bool global_chop_is_enabled;
-	ADS131M0XGlobalChopDelay global_chop_delay;
+	struct
+	{
+		bool is_enabled;
+		ADS131M0XGlobalChopDelay delay;
+	} global_chop;
 
 	// THRSHLD_LSB register — DC-block
-	ADS131M0XDcBlock dc_block;
+	ADS131M0XDCBlock dc_block;
 
 	// CFG + THRSHLD registers — current-detect fault
 	struct
 	{
 		bool is_enabled;
 		bool all_channels;
-		ADS131M0XCdNum num;
-		ADS131M0XCdLen len;
+		ADS131M0XCurrentDetectNum num;
+		ADS131M0XCurrentDetectLen len;
 		int32_t threshold;
 	} current_detect;
 
-} ADS131M0XGlobalConfig;
+} ADS131M0XConfig;
 
 // ── Channel configuration ─────────────────────────────────────────────────────
 typedef struct
@@ -235,7 +245,7 @@ typedef struct
 	ADS131M0XGain gain;
 	ADS131M0XMux mux;
 	int16_t phase_delay_cycles;
-	bool dc_block_is_disabled;
+	bool dc_block_disabled;
 	int32_t offset_cal;
 	uint32_t gain_cal;
 } ADS131M0XChannelConfig;
@@ -264,7 +274,7 @@ typedef struct
 	struct
 	{
 		bool is_enabled;
-		ADS131M0XCRCType type;
+		ADS131M0XCRCPolynomial type;
 	} crc;
 
 } ADS131M0X;
