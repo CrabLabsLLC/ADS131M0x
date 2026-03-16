@@ -16,6 +16,9 @@ extern "C" {
 ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal);
 ADS131M0XError ads131m0xReadChipId(const ADS131M0X* const dev, uint16_t* const id);
 
+ADS131M0XError ads131m0xSetGlobalConfig(ADS131M0X* const dev, const ADS131M0XGlobalConfig* const config);
+ADS131M0XError ads131m0xSetChannelConfig(ADS131M0X* const dev, uint8_t channel, const ADS131M0XChannelConfig* const config);
+
 ADS131M0XError ads131m0xSendCommand(const ADS131M0X* const dev, const ADS131M0XCommand cmd);
 
 ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t reg, uint16_t* const values, const uint8_t count);
