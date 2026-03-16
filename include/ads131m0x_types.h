@@ -50,9 +50,9 @@ typedef enum
 // ── Power modes (CLOCK.PWR) ───────────────────────────────────────────────────
 typedef enum
 {
-	ADS131M0X_POWER_VERY_LOW = 0x00U, ///< f_CLKIN = 2.048 MHz nominal
-	ADS131M0X_POWER_LOW      = 0x01U, ///< f_CLKIN = 4.096 MHz nominal
-	ADS131M0X_POWER_HIGH_RES = 0x02U, ///< f_CLKIN = 8.192 MHz nominal (default)
+	ADS131M0X_POWER_VERY_LOW = 0x00U,
+	ADS131M0X_POWER_LOW      = 0x01U,
+	ADS131M0X_POWER_HIGH_RES = 0x02U,
 } ADS131M0XPowerMode;
 
 // ── Oversampling ratio (CLOCK.OSR) ───────────────────────────────────────────
@@ -73,8 +73,8 @@ typedef enum
 {
 	ADS131M0X_WLENGTH_16_BIT      = 0x00U,
 	ADS131M0X_WLENGTH_24_BIT      = 0x01U, ///< Default
-	ADS131M0X_WLENGTH_32_BIT_ZERO = 0x02U, ///< 32-bit, zero-padded
-	ADS131M0X_WLENGTH_32_BIT_SIGN = 0x03U, ///< 32-bit, sign-extended
+	ADS131M0X_WLENGTH_32_BIT_ZERO = 0x02U,
+	ADS131M0X_WLENGTH_32_BIT_SIGN = 0x03U,
 } ADS131M0XWordLength;
 
 // ── PGA gain (GAIN1/GAIN2.PGAGAINn) ─────────────────────────────────────────
@@ -94,9 +94,9 @@ typedef enum
 typedef enum
 {
 	ADS131M0X_MUX_NORMAL       = 0x00U, ///< Default
-	ADS131M0X_MUX_SHORTED      = 0x01U, ///< Inputs shorted to mid-supply (offset cal)
-	ADS131M0X_MUX_POSITIVE_DCM = 0x02U, ///< Positive DC test signal from internal reference
-	ADS131M0X_MUX_NEGATIVE_DCM = 0x03U, ///< Negative DC test signal from internal reference
+	ADS131M0X_MUX_SHORTED      = 0x01U,
+	ADS131M0X_MUX_POSITIVE_DCM = 0x02U,
+	ADS131M0X_MUX_NEGATIVE_DCM = 0x03U,
 } ADS131M0XMux;
 
 // ── Global DC-block high-pass filter coefficient (THRSHLD_LSB.DCBLOCK) ───────
@@ -145,7 +145,7 @@ typedef enum
 typedef enum
 {
 	ADS131M0X_CRC_CCITT = 0x00U, ///< x^16 + x^12 + x^5 + 1
-	ADS131M0X_CRC_ANSI  = 0x01U, ///< x^16 + x^15 + x^2 + 1 (make default)
+	ADS131M0X_CRC_ANSI  = 0x01U, ///< x^16 + x^15 + x^2 + 1
 } ADS131M0XCRCType;
 
 // ── DRDY pin signal source (MODE.DRDY_SEL) ───────────────────────────────────
@@ -159,8 +159,8 @@ typedef enum
 // ── DRDY pin output format (MODE.DRDY_FMT) ───────────────────────────────────
 typedef enum
 {
-	ADS131M0X_DRDY_FMT_LOGIC_LOW = 0x00U, ///< Level low while data ready (default)
-	ADS131M0X_DRDY_FMT_PULSE     = 0x01U, ///< Falling-edge pulse at clock boundary
+	ADS131M0X_DRDY_FMT_LOGIC_LOW = 0x00U, ///< default
+	ADS131M0X_DRDY_FMT_PULSE     = 0x01U,
 } ADS131M0XDrdyFmt;
 
 // ── Current-detect consecutive over-threshold sample count (CFG.CD_NUM) ──────
