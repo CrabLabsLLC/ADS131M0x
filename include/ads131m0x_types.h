@@ -285,7 +285,7 @@ typedef struct
 	uint16_t status;
 	int32_t  channel_data[ADS131M0X_CHANNEL_COUNT];
 	uint16_t crc;
-	bool     crc_is_valid;
+	bool     crc_valid;
 } ADS131M0XData;
 
 #ifdef __cplusplus

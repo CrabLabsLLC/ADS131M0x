@@ -12,7 +12,7 @@ extern "C" {
 #include "ads131m0x_types.h"
 #include "ads131m0x_registers.h"
 
-#define ADS131M0X_REFERENCE_VOLTAGE 1.2f
+#define ADS131M0X_REFERENCE_VOLTAGE_V 1.2f
 
 // ── Initialization ────────────────────────────────────────────────────────────
 ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal);
@@ -31,7 +31,7 @@ ADS131M0XError ads131m0xUnlock(ADS131M0X* const dev);
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 ADS131M0XError ads131m0xReadData(const ADS131M0X* const dev, ADS131M0XData* const data);
-int64_t ads131m0xConvertToMicrovolts(int32_t raw_code, ADS131M0XGain gain); // voltage_uv = raw * 1200000 / (gain * 2^23)
+int64_t ads131m0xConvertToMicrovolts(int32_t raw_code, ADS131M0XGain gain); // voltage_uv = raw * ADS131M0X_REFERENCE_VOLTAGE_V * 1e6 / (gain * 2^23)
 
 // ── Register access ───────────────────────────────────────────────────────────
 ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t address, uint16_t* const value, const uint8_t count);
