@@ -9,8 +9,71 @@ extern "C" {
 #include "ads131m0x_hal.h"
 
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
+
+// ── Error codes ──────────────────────────────────────────────────────────────
+typedef enum
+{
+	ADS131M0X_ERROR_OK,
+	ADS131M0X_ERROR_NULL_PARAM,
+	ADS131M0X_ERROR_NOT_INITIALIZED,
+	ADS131M0X_ERROR_SPI,
+	ADS131M0X_ERROR_INVALID_CHANNEL,
+	ADS131M0X_ERROR_INVALID_PARAM,
+	ADS131M0X_ERROR_CRC,
+	ADS131M0X_ERROR_LOCKED,
+	ADS131M0X_ERROR_ID_MISMATCH
+} ADS131M0XError;
+
+// ── Power modes ──────────────────────────────────────────────────────────────
+typedef enum
+{
+	ADS131M0X_POWER_VERY_LOW = 0x00U,
+	ADS131M0X_POWER_LOW      = 0x01U,
+	ADS131M0X_POWER_HIGH_RES = 0x02U // Default
+} ADS131M0XPowerMode;
+
+// ── Oversampling ratio ──────────────────────────────────────────────────────────────
+typedef enum
+{
+	ADS131M0X_OSR_128 = 0x00U,
+	ADS131M0X_OSR_256 = 0x01U,
+	ADS131M0X_OSR_512 = 0x02U,
+	ADS131M0X_OSR_1024 = 0x03U, // Default
+	ADS131M0X_OSR_2048 = 0x04U,
+	ADS131M0X_OSR_4096 = 0x05U,
+	ADS131M0X_OSR_8192 = 0x06U,
+	ADS131M0X_OSR_16384 = 0x07U
+} ADS131M0XOSR;
+
+// ── SPI Word size ──────────────────────────────────────────────────────────────
+typedef enum
+{
+	ADS131M0X_WORD_16BIT = 0x00U,
+	ADS131M0X_WORD_24BIT = 0x01U, // Default
+	ADS131M0X_WORD_32BIT_ZERO_PAD = 0x02U,
+	ADS131M0X_WORD_32BIT_SIGN_EXT = 0x03U
+} ADS131M0XWordSize;
+
+#define CHANNEL_COUNT (4)   // ADS131M04 -> 4 Channels
+
+#if ((CHANNEL_COUNT < 1) || (CHANNEL_COUNT > 8))
+    #error Invalid channel count configured in 'ads131m0x.h'.
+#endif
+
+// ── SPI Opcodes ──────────────────────────────────────────────────────────────
+#define ADS131M0X_OPCODE_NULL           ((uint16_t) 0x0000)
+#define ADS131M0X_OPCODE_RESET          ((uint16_t) 0x0011)
+#define ADS131M0X_OPCODE_STANDBY        ((uint16_t) 0x0022)
+#define ADS131M0X_OPCODE_WAKEUP         ((uint16_t) 0x0033)
+#define ADS131M0X_OPCODE_LOCK           ((uint16_t) 0x0555)
+#define ADS131M0X_OPCODE_UNLOCK         ((uint16_t) 0x0655)
+#define ADS131M0X_OPCODE_RREG           ((uint16_t) 0xA000)
+#define ADS131M0X_OPCODE_WREG           ((uint16_t) 0x6000)
+
+// Build RREG/WREG opcodes with address: opcode | (addr << 7)
+#define ADS131M0X_OPCODE_RREG_ADDR(a)   ((uint16_t)(ADS131M0X_OPCODE_RREG | ((uint16_t)(a) << 7)))
+#define ADS131M0X_OPCODE_WREG_ADDR(a)   ((uint16_t)(ADS131M0X_OPCODE_WREG | ((uint16_t)(a) << 7)))
 
 typedef enum
 {
@@ -20,11 +83,7 @@ typedef enum
     ADS131M0X_WLENGTH_32_BIT_SIGN = 0x03U,
 } ADS131M0XWordLength;
 
-#define CHANNEL_COUNT (4)   // ADS131M04 -> 4 Channels
 
-#if ((CHANNEL_COUNT < 1) || (CHANNEL_COUNT > 8))
-    #error Invalid channel count configured in 'ads131m0x.h'.
-#endif
 
 /* Enable this define statement to use CRC on DIN... */
 //#define ENABLE_CRC_IN
