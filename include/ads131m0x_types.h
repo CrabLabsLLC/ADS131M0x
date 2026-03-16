@@ -167,6 +167,8 @@ typedef struct
     int  (*spiRead)(void* const data, const uint8_t length);
     int  (*spiWrite)(const void* const data, const uint8_t length);
     bool (*drdyGet)(void);
+    void (*resetDevice)(void); // Send RESET CMD
+    void (*sleepSet)(const bool state); // Set STANDBY (true) or WAKEUP (false) state
     void (*delayMs)(const uint32_t delayMs);
 } ADS131M0XHAL;
 
