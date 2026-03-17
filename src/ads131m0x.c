@@ -40,7 +40,82 @@ ADS131M0XError ads131m0xWrite(const ADS131M0X* const dev, const void* const valu
 	return ADS131M0X_ERROR_OK;
 }
 
-/* Static Helper Implementations */
+/* Public Functions*/
+ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal)
+{
+	if (dev == NULL || hal == NULL)
+		return ADS131M0X_ERROR_NULL_PARAM;
+
+	if (hal->spiRead == NULL || hal->spiWrite == NULL || hal->drdyGet == NULL || hal->syncResetSet == NULL || hal->delayMs == NULL)
+		return ADS131M0X_ERROR_NULL_PARAM;
+
+    dev->hal = *hal;
+    dev->is_initialized = false;
+    dev->is_locked = false;
+    dev->word_length = ADS131M0X_WLENGTH_24_BIT;  // power-on default
+    dev->active_channel_count = ADS131M0X_CHANNEL_COUNT;
+    dev->crc.is_enabled = false;
+    dev->crc.type = ADS131M0X_CRC_POLYNOMIAL_ANSI;
+
+    dev->hal.syncResetSet(false);
+    dev->hal.delayMs(1); // hold for at least 1ms
+    dev->hal.syncResetSet(true);
+    dev->hal.delayMs(1); // let device boot
+
+    uint16_t response = 0;
+    ADS131M0XError err = sendCommand(dev, ADS131M0X_CMD_WAKEUP, &response);
+    if (err != ADS131M0X_ERROR_OK)
+        return err;
+
+    if (response != ADS131M0X_RESP_RESET_OK)
+        return ADS131M0X_ERROR_ID_MISMATCH;
+
+    dev->is_initialized = true;
+
+	return ADS131M0X_ERROR_OK;
+}
+
+ADS131M0XError ads131m0xDeinit(ADS131M0X* const dev)
+{
+	if (dev == NULL)
+		return ADS131M0X_ERROR_NULL_PARAM;
+
+    dev->is_initialized = false;
+    dev->hal = (ADS131M0XHAL){0}; // zero all function pointers — prevents stale HAL calls
+
+	return ADS131M0X_ERROR_OK;
+}
+
+ADS131M0XError ads131m0xReset(ADS131M0X* const dev)
+{
+	if (dev == NULL)
+		return ADS131M0X_ERROR_NULL_PARAM;
+
+	if (!dev->is_initialized)
+		return ADS131M0X_ERROR_NOT_INITIALIZED;
+
+	if (dev->is_locked)
+		return ADS131M0X_ERROR_LOCKED;
+
+	uint16_t response = 0;
+    ADS131M0XError err = sendCommand(dev, ADS131M0X_CMD_RESET, &response);
+    if (err != ADS131M0X_ERROR_OK)
+        return err;
+    dev->hal.delayMs(1); // Wait for device to complete internal reset
+
+    if (response != ADS131M0X_RESP_RESET_OK)
+        return ADS131M0X_ERROR_SPI;
+
+    dev->word_length = ADS131M0X_WLENGTH_24_BIT;  // power-on default
+    dev->active_channel_count = ADS131M0X_CHANNEL_COUNT;
+    dev->is_locked = false;
+    dev->crc.is_enabled = false;
+    dev->crc.type = ADS131M0X_CRC_POLYNOMIAL_ANSI;
+
+	return ADS131M0X_ERROR_OK;
+}
+
+/* Static Helper Functions */
 static uint8_t bytesPerWord(ADS131M0XWordLength word_length)
 {
 	switch (word_length)
@@ -172,10 +247,10 @@ static ADS131M0XError sendCommand(const ADS131M0X* const dev, ADS131M0XCommand c
 		const uint16_t crc_polynomial = (dev->crc.type == ADS131M0X_CRC_POLYNOMIAL_ANSI) ? ADS131M0X_CRC_POLY_ANSI : ADS131M0X_CRC_POLY_CCITT;
 
 		const uint8_t crc_offset = data_words * bytes_per_word;
-		const uint16_t calc_crc  = calculateCRC(crc_polynomial, rx_buf, crc_offset, 0xFFFFU);
-		const uint16_t recv_crc  = ((uint16_t)rx_buf[crc_offset] << 8) | rx_buf[crc_offset + 1U];
+		const uint16_t calculated_crc  = calculateCRC(crc_polynomial, rx_buf, crc_offset, 0xFFFFU);
+		const uint16_t received_crc  = ((uint16_t)rx_buf[crc_offset] << 8) | rx_buf[crc_offset + 1U];
 
-		if (calc_crc != recv_crc)
+		if (calculated_crc != received_crc)
 			return ADS131M0X_ERROR_CRC;
 	}
 
