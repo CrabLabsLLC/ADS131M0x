@@ -26,7 +26,6 @@ static int32_t signExtend(const uint8_t* bytes, ADS131M0XWordLength word_length)
 static uint16_t calculateCRC(const ADS131M0X* const dev, const uint8_t* data, uint8_t length_bytes, uint16_t initialValue);
 static ADS131M0XError sendCommand(const ADS131M0X* const dev, ADS131M0XCommand command, uint16_t* const response);
 
-
 /* Bare Bones API */
 ADS131M0XError ads131m0xRead(const ADS131M0X* const dev, void* const value, const uint8_t count)
 {
@@ -63,7 +62,7 @@ static uint8_t bytesPerWord(ADS131M0XWordLength word_length)
 		case ADS131M0X_WLENGTH_32_BIT_SIGN:
 			return 4U;
 		default:
-			return 0U;
+			return 3U;
 	}
 }
 
@@ -87,7 +86,7 @@ static void packWord(uint8_t* buf, uint16_t word, ADS131M0XWordLength word_lengt
 			buf[3] = 0x00U;
             break;
 		case ADS131M0X_WLENGTH_32_BIT_SIGN:
-			buf[0] = (word & 0x8000) ? 0xFF : 0x00;
+			buf[0] = (word & 0x8000U) ? 0xFF : 0x00;
 			buf[1] = (uint8_t)(word >> 8U);
 			buf[2] = (uint8_t)(word & 0xFFU);
 			buf[3] = 0x00U;
@@ -102,25 +101,33 @@ static int32_t signExtend(const uint8_t* bytes, ADS131M0XWordLength word_length)
     switch (word_length)
     {
         case ADS131M0X_WLENGTH_16_BIT:
+        {
             int32_t upperByte   = ((int32_t) bytes[0] << 24);
             int32_t lowerByte   = ((int32_t) bytes[1] << 16);
             return (((int32_t) (upperByte | lowerByte)) >> 16); 
+        }
         case ADS131M0X_WLENGTH_24_BIT:
+        {
             int32_t upperByte   = ((int32_t) bytes[0] << 24);
             int32_t middleByte  = ((int32_t) bytes[1] << 16);
             int32_t lowerByte   = ((int32_t) bytes[2] << 8);
             return (((int32_t) (upperByte | middleByte | lowerByte)) >> 8);
+        }
         case ADS131M0X_WLENGTH_32_BIT_ZERO:
+        {
             int32_t upperByte   = ((int32_t) bytes[0] << 24);
             int32_t middleByte  = ((int32_t) bytes[1] << 16);
             int32_t lowerByte   = ((int32_t) bytes[2] << 8);
             return (((int32_t) (upperByte | middleByte | lowerByte)) >> 8);
+        }
         case ADS131M0X_WLENGTH_32_BIT_SIGN:
+        {
             int32_t signByte    = ((int32_t) bytes[0] << 24);
             int32_t upperByte   = ((int32_t) bytes[1] << 16);
             int32_t middleByte  = ((int32_t) bytes[2] << 8);
             int32_t lowerByte   = ((int32_t) bytes[3] << 0);
             return (signByte | upperByte | middleByte | lowerByte);
+        }
         default:
             return 0;
     }
