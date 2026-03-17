@@ -1,12 +1,3 @@
-  /**
-   * @file ads131m0x.c
-   * @brief ADS131M0x 24-bit delta-sigma ADC driver implementation.
-   *
-   * @author Lan Pham <lan@crablabs.io>
-   *
-   * @reviewer Orion Serup <orion@crablabs.io>
-   */
-
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -23,30 +14,30 @@
 static uint8_t bytesPerWord(ADS131M0XWordLength word_length);
 static void packWord(uint8_t* buf, uint16_t word, ADS131M0XWordLength word_length);
 static int32_t signExtend(const uint8_t* bytes, ADS131M0XWordLength word_length);
-static uint16_t calculateCRC(const ADS131M0X* const dev, const uint8_t* data, uint8_t length_bytes, uint16_t initialValue);
+static uint16_t calculateCRC(uint16_t crc_polynomial, const uint8_t* data, uint8_t length_bytes, uint16_t initialValue);
 static ADS131M0XError sendCommand(const ADS131M0X* const dev, ADS131M0XCommand command, uint16_t* const response);
 
 /* Bare Bones API */
 ADS131M0XError ads131m0xRead(const ADS131M0X* const dev, void* const value, const uint8_t count)
 {
-    if (dev == NULL || value == NULL)
-        return ADS131M0X_ERROR_NULL_PARAM;
+	if (dev == NULL || value == NULL)
+		return ADS131M0X_ERROR_NULL_PARAM;
 
-    if (dev->hal.spiRead(value, count) != 0)
-        return ADS131M0X_ERROR_SPI;
+	if (dev->hal.spiRead(value, count) != 0)
+		return ADS131M0X_ERROR_SPI;
 
-    return ADS131M0X_ERROR_OK;
+	return ADS131M0X_ERROR_OK;
 }
 
 ADS131M0XError ads131m0xWrite(const ADS131M0X* const dev, const void* const value, const uint8_t count)
 {
-    if (dev == NULL || value == NULL)
-        return ADS131M0X_ERROR_NULL_PARAM;
+	if (dev == NULL || value == NULL)
+		return ADS131M0X_ERROR_NULL_PARAM;
 
-    if (dev->hal.spiWrite(value, count) != 0)
-        return ADS131M0X_ERROR_SPI;
+	if (dev->hal.spiWrite(value, count) != 0)
+		return ADS131M0X_ERROR_SPI;
 
-    return ADS131M0X_ERROR_OK;
+	return ADS131M0X_ERROR_OK;
 }
 
 /* Static Helper Implementations */
@@ -80,17 +71,17 @@ static void packWord(uint8_t* buf, uint16_t word, ADS131M0XWordLength word_lengt
 			buf[2] = 0x00U;
 			break;
 		case ADS131M0X_WLENGTH_32_BIT_ZERO:
-            buf[0] = (uint8_t)(word >> 8U);
+			buf[0] = (uint8_t)(word >> 8U);
 			buf[1] = (uint8_t)(word & 0xFFU);
 			buf[2] = 0x00U;
 			buf[3] = 0x00U;
-            break;
+			break;
 		case ADS131M0X_WLENGTH_32_BIT_SIGN:
 			buf[0] = (word & 0x8000U) ? 0xFF : 0x00;
 			buf[1] = (uint8_t)(word >> 8U);
 			buf[2] = (uint8_t)(word & 0xFFU);
 			buf[3] = 0x00U;
-            break;
+			break;
 		default:
 			break;
 	}
@@ -98,100 +89,98 @@ static void packWord(uint8_t* buf, uint16_t word, ADS131M0XWordLength word_lengt
 
 static int32_t signExtend(const uint8_t* bytes, ADS131M0XWordLength word_length)
 {
-    switch (word_length)
-    {
-        case ADS131M0X_WLENGTH_16_BIT:
-        {
-            int32_t upperByte   = ((int32_t) bytes[0] << 24);
-            int32_t lowerByte   = ((int32_t) bytes[1] << 16);
-            return (((int32_t) (upperByte | lowerByte)) >> 16); 
-        }
-        case ADS131M0X_WLENGTH_24_BIT:
-        {
-            int32_t upperByte   = ((int32_t) bytes[0] << 24);
-            int32_t middleByte  = ((int32_t) bytes[1] << 16);
-            int32_t lowerByte   = ((int32_t) bytes[2] << 8);
-            return (((int32_t) (upperByte | middleByte | lowerByte)) >> 8);
-        }
-        case ADS131M0X_WLENGTH_32_BIT_ZERO:
-        {
-            int32_t upperByte   = ((int32_t) bytes[0] << 24);
-            int32_t middleByte  = ((int32_t) bytes[1] << 16);
-            int32_t lowerByte   = ((int32_t) bytes[2] << 8);
-            return (((int32_t) (upperByte | middleByte | lowerByte)) >> 8);
-        }
-        case ADS131M0X_WLENGTH_32_BIT_SIGN:
-        {
-            int32_t signByte    = ((int32_t) bytes[0] << 24);
-            int32_t upperByte   = ((int32_t) bytes[1] << 16);
-            int32_t middleByte  = ((int32_t) bytes[2] << 8);
-            int32_t lowerByte   = ((int32_t) bytes[3] << 0);
-            return (signByte | upperByte | middleByte | lowerByte);
-        }
-        default:
-            return 0;
-    }
+	switch (word_length)
+	{
+		case ADS131M0X_WLENGTH_16_BIT:
+		{
+			int32_t upper_byte   = ((int32_t) bytes[0] << 24);
+			int32_t lower_byte   = ((int32_t) bytes[1] << 16);
+			return (((int32_t) (upper_byte | lower_byte)) >> 16); 
+		}
+		case ADS131M0X_WLENGTH_24_BIT:
+		{
+			int32_t upper_byte   = ((int32_t) bytes[0] << 24);
+			int32_t middle_byte  = ((int32_t) bytes[1] << 16);
+			int32_t lower_byte   = ((int32_t) bytes[2] << 8);
+			return (((int32_t) (upper_byte | middle_byte | lower_byte)) >> 8);
+		}
+		case ADS131M0X_WLENGTH_32_BIT_ZERO:
+		{
+			int32_t upper_byte   = ((int32_t) bytes[0] << 24);
+			int32_t middle_byte  = ((int32_t) bytes[1] << 16);
+			int32_t lower_byte   = ((int32_t) bytes[2] << 8);
+			return (((int32_t) (upper_byte | middle_byte | lower_byte)) >> 8);
+		}
+		case ADS131M0X_WLENGTH_32_BIT_SIGN:
+		{
+			int32_t sign_byte    = ((int32_t) bytes[0] << 24);
+			int32_t upper_byte   = ((int32_t) bytes[1] << 16);
+			int32_t middle_byte  = ((int32_t) bytes[2] << 8);
+			int32_t lower_byte   = ((int32_t) bytes[3] << 0);
+			return (sign_byte | upper_byte | middle_byte | lower_byte);
+		}
+		default:
+			return 0;
+	}
 }
 
-static uint16_t calculateCRC(const ADS131M0X* const dev, const uint8_t* data, uint8_t length_bytes, uint16_t initialValue)
+static uint16_t calculateCRC(uint16_t crc_polynomial, const uint8_t* data, uint8_t length_bytes, uint16_t initialValue)
 {
-    uint16_t crc = initialValue;
-    uint16_t crc_type = dev->crc.type;
-    uint16_t polynomial = (crc_type == ADS131M0X_CRC_POLYNOMIAL_ANSI) ? ADS131M0X_CRC_POLY_ANSI : ADS131M0X_CRC_POLY_CCITT;
+	uint16_t crc = initialValue;
 
-    for (uint8_t i = 0; i < length_bytes; i++)
-    {
-        for (uint8_t bit = 0x80U; bit != 0; bit >>= 1)
-        {
-            bool data_msb = (data[i] & bit) != 0;
-            bool crc_msb  = (crc & 0x8000U) != 0;
-            crc <<= 1;
-            if (data_msb ^ crc_msb)
-            {
-                crc ^= polynomial;
-            }
-        }
-    }
+	for (uint8_t i = 0; i < length_bytes; i++)
+	{
+		for (uint8_t bit = 0x80U; bit != 0; bit >>= 1)
+		{
+			bool data_msb = (data[i] & bit) != 0;
+			bool crc_msb  = (crc & 0x8000U) != 0;
+			crc <<= 1;
+			if (data_msb ^ crc_msb)
+			{
+				crc ^= crc_polynomial;
+			}
+		}
+	}
 
-    return crc;
+	return crc;
 }
 
 static ADS131M0XError sendCommand(const ADS131M0X* const dev, ADS131M0XCommand command, uint16_t* const response)
 {
-    uint8_t bytes_per_word = bytesPerWord(dev->word_length);
-    uint8_t data_words     = 1U + ADS131M0X_CHANNEL_COUNT; // status + channel words
-    uint8_t crc_words      = dev->crc.is_enabled ? 1U : 0U;
-    uint8_t frame_bytes    = (data_words + crc_words) * bytes_per_word;
+	uint8_t bytes_per_word = bytesPerWord(dev->word_length);
+	uint8_t data_words     = 1U + ADS131M0X_CHANNEL_COUNT; // status + channel words
+	uint8_t crc_words      = dev->crc.is_enabled ? 1U : 0U;
+	uint8_t frame_bytes    = (data_words + crc_words) * bytes_per_word;
 
-    uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
-    memset(tx_buf, 0, sizeof(tx_buf));
-    packWord(tx_buf, (uint16_t)command, dev->word_length);
+	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
+	memset(tx_buf, 0, sizeof(tx_buf));
+	packWord(tx_buf, (uint16_t)command, dev->word_length);
 
-    ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
-    if (err != ADS131M0X_ERROR_OK)
-        return err;
+	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
 
-    uint8_t rx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
-    memset(rx_buf, 0, sizeof(rx_buf));
+	uint8_t rx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
+	memset(rx_buf, 0, sizeof(rx_buf));
 
-    err = ads131m0xRead(dev, rx_buf, frame_bytes);
-    if (err != ADS131M0X_ERROR_OK)
-        return err;
+	err = ads131m0xRead(dev, rx_buf, frame_bytes);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
 
-    if (dev->crc.is_enabled)
-    {
-        const uint16_t poly = (dev->crc.type == ADS131M0X_CRC_POLYNOMIAL_ANSI) ? ADS131M0X_CRC_POLY_ANSI : ADS131M0X_CRC_POLY_CCITT;
+	if (dev->crc.is_enabled)
+	{
+		const uint16_t crc_polynomial = (dev->crc.type == ADS131M0X_CRC_POLYNOMIAL_ANSI) ? ADS131M0X_CRC_POLY_ANSI : ADS131M0X_CRC_POLY_CCITT;
 
-        const uint8_t crc_offset = data_words * bytes_per_word;
-        const uint16_t calc_crc  = calculateCRC(dev, rx_buf, crc_offset, 0xFFFFU);
-        const uint16_t recv_crc  = ((uint16_t)rx_buf[crc_offset] << 8) | rx_buf[crc_offset + 1U];
+		const uint8_t crc_offset = data_words * bytes_per_word;
+		const uint16_t calc_crc  = calculateCRC(crc_polynomial, rx_buf, crc_offset, 0xFFFFU);
+		const uint16_t recv_crc  = ((uint16_t)rx_buf[crc_offset] << 8) | rx_buf[crc_offset + 1U];
 
-        if (calc_crc != recv_crc)
-            return ADS131M0X_ERROR_CRC;
-    }
-    
-    if (response != NULL)
-        *response = ((uint16_t)rx_buf[0] << 8) | rx_buf[1];
+		if (calc_crc != recv_crc)
+			return ADS131M0X_ERROR_CRC;
+	}
 
-    return ADS131M0X_ERROR_OK;  
+	if (response != NULL)
+		*response = ((uint16_t)rx_buf[0] << 8) | rx_buf[1];
+
+	return ADS131M0X_ERROR_OK;
 }
