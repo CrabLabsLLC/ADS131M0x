@@ -7,8 +7,8 @@
 
 /* Maximum bytes per SPI frame: (channel count + status word + CRC word) * maximum bytes per word (32-bit -> 4 bytes) */
 #define ADS131M0X_FRAME_SIZE_MAX_BYTES ((ADS131M0X_CHANNEL_COUNT + 2U) * 4U)
-#define ADS131M0X_CRC_POLY_CCITT 0x1021U
-#define ADS131M0X_CRC_POLY_ANSI  0x8005U
+#define ADS131M0X_CRC_POLYNOMIAL_HEX_CCITT 0x1021U
+#define ADS131M0X_CRC_POLYNOMIAL_HEX_ANSI  0x8005U
 
 /* Forward Declarations */
 static uint8_t bytesPerWord(ADS131M0XWordLength word_length);
@@ -55,7 +55,7 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
     dev->word_length = ADS131M0X_WLENGTH_24_BIT;  // power-on default
     dev->active_channel_count = ADS131M0X_CHANNEL_COUNT;
     dev->crc.is_enabled = false;
-    dev->crc.type = ADS131M0X_CRC_POLYNOMIAL_ANSI;
+    dev->crc.type = ADS131M0X_CRC_POLYNOMIAL_CCITT;
 
     dev->hal.syncResetSet(false);
     dev->hal.delayMs(1); // hold for at least 1ms
@@ -63,7 +63,7 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
     dev->hal.delayMs(1); // let device boot
 
     uint16_t response = 0;
-    ADS131M0XError err = sendCommand(dev, ADS131M0X_CMD_WAKEUP, &response);
+    ADS131M0XError err = sendCommand(dev, ADS131M0X_CMD_NULL, &response);
     if (err != ADS131M0X_ERROR_OK)
         return err;
 
@@ -110,7 +110,7 @@ ADS131M0XError ads131m0xReset(ADS131M0X* const dev)
     dev->active_channel_count = ADS131M0X_CHANNEL_COUNT;
     dev->is_locked = false;
     dev->crc.is_enabled = false;
-    dev->crc.type = ADS131M0X_CRC_POLYNOMIAL_ANSI;
+    dev->crc.type = ADS131M0X_CRC_POLYNOMIAL_CCITT;
 
 	return ADS131M0X_ERROR_OK;
 }
@@ -244,7 +244,7 @@ static ADS131M0XError sendCommand(const ADS131M0X* const dev, ADS131M0XCommand c
 
 	if (dev->crc.is_enabled)
 	{
-		const uint16_t crc_polynomial = (dev->crc.type == ADS131M0X_CRC_POLYNOMIAL_ANSI) ? ADS131M0X_CRC_POLY_ANSI : ADS131M0X_CRC_POLY_CCITT;
+		const uint16_t crc_polynomial = (dev->crc.type == ADS131M0X_CRC_POLYNOMIAL_ANSI) ? ADS131M0X_CRC_POLYNOMIAL_HEX_ANSI : ADS131M0X_CRC_POLYNOMIAL_HEX_CCITT;
 
 		const uint8_t crc_offset = data_words * bytes_per_word;
 		const uint16_t calculated_crc  = calculateCRC(crc_polynomial, rx_buf, crc_offset, 0xFFFFU);
