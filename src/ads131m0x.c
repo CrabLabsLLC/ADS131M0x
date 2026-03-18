@@ -113,6 +113,17 @@ ADS131M0XError ads131m0xReset(ADS131M0X* const dev)
 	return ADS131M0X_ERROR_OK;
 }
 
+ADS131M0XError ads131m0xReadChipId(const ADS131M0X* const dev, uint16_t* const id)
+{
+	if (dev == NULL || id == NULL)
+		return ADS131M0X_ERROR_NULL_PARAM;
+
+	if (!dev->is_initialized)
+		return ADS131M0X_ERROR_NOT_INITIALIZED;
+
+	return ads131m0xReadRegister(dev, ADS131M0X_ID_ADDRESS, id);
+}
+
 int64_t ads131m0xConvertToMicrovolts(int32_t raw_code, ADS131M0XGain gain)
 {
 	// voltage_uv = raw * ADS131M0X_REFERENCE_VOLTAGE_UV / (gain_multiplier * 2^23)
@@ -243,7 +254,7 @@ ADS131M0XError ads131m0xConfigureChannel(ADS131M0X* const dev, uint8_t channel, 
 
 	/* Write all 4 channel registers as burst */
 	uint16_t ch_regs[4] = { ocal_msb, ocal_lsb, gcal_msb, gcal_lsb };
-	err = ads131m0xWriteRegisters(dev, base, ch_regs, 4);
+	err = ads131m0xWriteRegisters(dev, base + ADS131M0X_CH_OCAL_MSB_OFFSET, ch_regs, 4);
 	if (err != ADS131M0X_ERROR_OK)
 		return err;
 
@@ -532,6 +543,22 @@ ADS131M0XError ads131m0xWriteRegisters(const ADS131M0X* const dev, const uint8_t
 		return err;
 
 	return ADS131M0X_ERROR_OK;
+}
+
+const char* ads131m0xErrorToString(ADS131M0XError err)
+{
+	switch (err)
+	{
+		case ADS131M0X_ERROR_OK: return "OK";
+		case ADS131M0X_ERROR_NULL_PARAM: return "NULL_PARAM";
+		case ADS131M0X_ERROR_INVALID_PARAM: return "INVALID_PARAM";
+		case ADS131M0X_ERROR_NOT_INITIALIZED: return "NOT_INITIALIZED";
+		case ADS131M0X_ERROR_LOCKED: return "LOCKED";
+		case ADS131M0X_ERROR_SPI: return "SPI";
+		case ADS131M0X_ERROR_CRC: return "CRC";
+		case ADS131M0X_ERROR_ID_MISMATCH: return "ID_MISMATCH";
+		default: return "ADS131M0X_ERROR_UNKNOWN";
+	}
 }
 
 // ── Bare Bones API ──────────────────────────────────────────────────────────
