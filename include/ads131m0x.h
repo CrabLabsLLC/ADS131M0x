@@ -12,7 +12,8 @@ extern "C" {
 #include "ads131m0x_types.h"
 #include "ads131m0x_registers.h"
 
-#define ADS131M0X_REFERENCE_VOLTAGE_V 1.2f
+#define ADS131M0X_REFERENCE_VOLTAGE_UV 1200000U
+#define ADS131M0X_23_BITS 8388608U
 
 // ── Initialization ────────────────────────────────────────────────────────────
 /**

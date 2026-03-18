@@ -113,6 +113,13 @@ ADS131M0XError ads131m0xReset(ADS131M0X* const dev)
 	return ADS131M0X_ERROR_OK;
 }
 
+int64_t ads131m0xConvertToMicrovolts(int32_t raw_code, ADS131M0XGain gain)
+{
+	// voltage_uv = raw * ADS131M0X_REFERENCE_VOLTAGE_UV / (gain_multiplier * 2^23)
+	const uint32_t gain_multiplier = 1U << (uint8_t)gain;
+	return raw_code * ADS131M0X_REFERENCE_VOLTAGE_UV / (gain_multiplier * ADS131M0X_23_BITS);
+}
+
 ADS131M0XError ads131m0xReadData(const ADS131M0X* const dev, ADS131M0XData* const data)
 {
 	if (dev == NULL || data == NULL)
@@ -126,6 +133,7 @@ ADS131M0XError ads131m0xReadData(const ADS131M0X* const dev, ADS131M0XData* cons
 
 	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
 	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word; // Status + CRC + Channel words
+	const uint8_t crc_offset = (1U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
 
 	/* Frame 1: send NULL command */
 	memset(tx_buf, 0, sizeof(tx_buf));
