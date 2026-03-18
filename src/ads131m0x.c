@@ -112,6 +112,63 @@ ADS131M0XError ads131m0xReset(ADS131M0X* const dev)
 	return ADS131M0X_ERROR_OK;
 }
 
+ADS131M0XError ads131m0xReadData(const ADS131M0X* const dev, ADS131M0XData* const data)
+{
+	if (dev == NULL || data == NULL)
+		return ADS131M0X_ERROR_NULL_PARAM;
+
+	if (!dev->is_initialized)
+		return ADS131M0X_ERROR_NOT_INITIALIZED;
+
+	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
+	uint8_t rx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
+
+	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
+	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word; // Status + CRC + Channel words
+	const uint8_t crc_offset = (1U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
+
+	/* Frame 1: send NULL command */
+	memset(tx_buf, 0, sizeof(tx_buf));
+	packWord(tx_buf, (uint16_t)ADS131M0X_CMD_NULL, dev->word_length);
+
+	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
+
+	/* Frame 2: read response containing status + channel data + CRC */
+	memset(rx_buf, 0, sizeof(rx_buf));
+	err = ads131m0xRead(dev, rx_buf, frame_bytes);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
+
+	/* Extract status from word[0] */
+	data->status = ((uint16_t)rx_buf[0] << 8U) | rx_buf[1];
+
+	/* Extract CRC from word[CHANNEL_COUNT+1] — always present, zeros when disabled */
+	data->crc = ((uint16_t)rx_buf[crc_offset] << 8U) | rx_buf[crc_offset + 1U];
+
+	/* Validate CRC if enabled */
+	if (dev->crc.is_enabled)
+	{
+		const uint16_t crc_polynomial = (dev->crc.type == ADS131M0X_CRC_POLYNOMIAL_ANSI)
+										? ADS131M0X_CRC_POLYNOMIAL_HEX_ANSI
+										: ADS131M0X_CRC_POLYNOMIAL_HEX_CCITT;
+		uint16_t calculated_crc = calculateCRC(crc_polynomial, rx_buf, crc_offset, 0xFFFFU);
+		data->crc_valid = (calculated_crc == data->crc);
+	}
+	else
+		data->crc_valid = true;
+
+	/* Extract channel data from words 1..CHANNEL_COUNT */
+	for (uint8_t i = 0; i < ADS131M0X_CHANNEL_COUNT; i++)
+	{
+		uint8_t offset = (i + 1U) * bytes_per_word;
+		data->channel_data[i] = signExtend(&rx_buf[offset], dev->word_length);
+	}
+
+	return ADS131M0X_ERROR_OK;
+}
+
 ADS131M0XError ads131m0xStandby(ADS131M0X* const dev)
 {
 	if (dev == NULL)
@@ -229,40 +286,13 @@ ADS131M0XError ads131m0xReadRegister(const ADS131M0X* const dev, const uint8_t a
 	return ADS131M0X_ERROR_OK;
 }
 
-ADS131M0XError ads131m0xWriteRegister(const ADS131M0X* const dev, const uint8_t address, const uint16_t value)
-{
-	if (dev == NULL)
-		return ADS131M0X_ERROR_NULL_PARAM;
-
-	if (!dev->is_initialized)
-		return ADS131M0X_ERROR_NOT_INITIALIZED;
-
-	if (dev->is_locked)
-		return ADS131M0X_ERROR_LOCKED;
-
-	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
-	// Status + CRC + Channel words
-	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
-
-	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
-	memset(tx_buf, 0, sizeof(tx_buf));
-	uint16_t opcode = ADS131M0X_CMD_WREG | ((uint16_t)address << 7U);
-	packWord(tx_buf, opcode, dev->word_length);
-	packWord(&tx_buf[bytes_per_word], value, dev->word_length);
-
-	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
-	if (err != ADS131M0X_ERROR_OK)
-		return err;
-
-	return ADS131M0X_ERROR_OK;
-}
-
 ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t address, uint16_t* const value, const uint8_t count)
 {
 	if (dev == NULL || value == NULL)
 		return ADS131M0X_ERROR_NULL_PARAM;
 
-	// Check for valid channel-data slots
+	/* Limited to CHANNEL_COUNT by the fixed-size stack frame buffer.
+	 * Larger bursts require a larger buffer.*/
 	if (count > ADS131M0X_CHANNEL_COUNT || count == 0)
 		return ADS131M0X_ERROR_INVALID_PARAM;
 
@@ -296,6 +326,34 @@ ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t 
 		uint8_t offset = (count == 1) ? 0 : (i + 1U) * bytes_per_word;
 		value[i] = ((uint16_t)rx_buf[offset] << 8U) | rx_buf[offset + 1U];
 	}
+
+	return ADS131M0X_ERROR_OK;
+}
+
+ADS131M0XError ads131m0xWriteRegister(const ADS131M0X* const dev, const uint8_t address, const uint16_t value)
+{
+	if (dev == NULL)
+		return ADS131M0X_ERROR_NULL_PARAM;
+
+	if (!dev->is_initialized)
+		return ADS131M0X_ERROR_NOT_INITIALIZED;
+
+	if (dev->is_locked)
+		return ADS131M0X_ERROR_LOCKED;
+
+	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
+	// Status + CRC + Channel words
+	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
+
+	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
+	memset(tx_buf, 0, sizeof(tx_buf));
+	uint16_t opcode = ADS131M0X_CMD_WREG | ((uint16_t)address << 7U);
+	packWord(tx_buf, opcode, dev->word_length);
+	packWord(&tx_buf[bytes_per_word], value, dev->word_length);
+
+	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
 
 	return ADS131M0X_ERROR_OK;
 }
@@ -497,6 +555,27 @@ static ADS131M0XError sendCommand(const ADS131M0X* const dev, ADS131M0XCommand c
 
 	if (response != NULL)
 		*response = ((uint16_t)rx_buf[0] << 8) | rx_buf[1];
+
+	return ADS131M0X_ERROR_OK;
+}
+
+static ADS131M0XError checkCRC(const ADS131M0X* const dev, const uint8_t* buf, uint8_t crc_offset)
+{
+	if (dev == NULL || buf == NULL)
+		return ADS131M0X_ERROR_NULL_PARAM;
+
+	if (crc_offset >= ADS131M0X_FRAME_SIZE_MAX_BYTES)
+		return ADS131M0X_ERROR_INVALID_PARAM;
+
+	const uint16_t crc_polynomial = (dev->crc.type == ADS131M0X_CRC_POLYNOMIAL_ANSI)
+									? ADS131M0X_CRC_POLYNOMIAL_HEX_ANSI
+									: ADS131M0X_CRC_POLYNOMIAL_HEX_CCITT;
+
+	const uint16_t calculated_crc  = calculateCRC(crc_polynomial, buf, crc_offset, 0xFFFFU);
+	const uint16_t received_crc  = ((uint16_t)buf[crc_offset] << 8) | buf[crc_offset + 1U];
+
+	if (calculated_crc != received_crc)
+		return ADS131M0X_ERROR_CRC;
 
 	return ADS131M0X_ERROR_OK;
 }
