@@ -96,12 +96,15 @@ int64_t ads131m0xConvertToMicrovolts(int32_t raw_code, ADS131M0XGain gain); // v
 
 // ── Register access ───────────────────────────────────────────────────────────
 /**
- * @brief Read registers from the ADS131M0X device.
- * @param dev Pointer to the ADS131M0X device structure.
- * @param address The starting address of the registers to read.
- * @param value Pointer to the array to store the register values.
- * @param count The number of registers to read.
+ * @brief Read consecutive registers from the ADS131M0X device.
+ * @param[in]  dev     Pointer to the ADS131M0X device structure.
+ * @param[in]  address The starting register address.
+ * @param[out] value   Pointer to the array to store the register values.
+ * @param[in]  count   The number of registers to read (1 to ADS131M0X_MAX_BURST_COUNT).
  * @return ADS131M0X_ERROR_OK if successful, otherwise an error code.
+ * @note The maximum burst count is limited by the SPI frame buffer size,
+ *       not the device register space. With 4 channels this limit is 5.
+ *       Issue multiple calls for larger ranges.
  */
 ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t address, uint16_t* const value, const uint8_t count);
 /**
@@ -113,12 +116,15 @@ ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t 
  */
 ADS131M0XError ads131m0xReadRegister(const ADS131M0X* const dev, const uint8_t address, uint16_t* const value);
 /**
- * @brief Write registers to the ADS131M0X device.
- * @param dev Pointer to the ADS131M0X device structure.
- * @param address The starting address of the registers to write.
- * @param value Pointer to the array to store the register values.
- * @param count The number of registers to write.
+ * @brief Write consecutive registers to the ADS131M0X device.
+ * @param[in] dev     Pointer to the ADS131M0X device structure.
+ * @param[in] address The starting register address.
+ * @param[in] value   Pointer to the array of register values to write.
+ * @param[in] count   The number of registers to write (1 to ADS131M0X_MAX_BURST_COUNT).
  * @return ADS131M0X_ERROR_OK if successful, otherwise an error code.
+ * @note The maximum burst count is limited by the SPI frame buffer size,
+ *       not the device register space. With 4 channels this limit is 5.
+ *       Issue multiple calls for larger ranges.
  */
 ADS131M0XError ads131m0xWriteRegisters(const ADS131M0X* const dev, const uint8_t address, const uint16_t* const value, const uint8_t count);
 /**

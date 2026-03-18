@@ -7,6 +7,11 @@
 
 /* Maximum bytes per SPI frame: (channel count + status word + CRC word) * maximum bytes per word (32-bit -> 4 bytes) */
 #define ADS131M0X_FRAME_SIZE_MAX_BYTES ((ADS131M0X_CHANNEL_COUNT + 2U) * 4U)
+/*
+ * Maximum registers per burst read/write. Derived from the SPI frame buffer
+ * size, not the device register space (~64 registers). With 4 channels this
+ * evaluates to 5. Issue multiple bursts for larger ranges.
+ */
 #define ADS131M0X_MAX_BURST_COUNT ((ADS131M0X_FRAME_SIZE_MAX_BYTES / 4U) - 1U)
 #define ADS131M0X_CRC_POLYNOMIAL_HEX_CCITT 0x1021U
 #define ADS131M0X_CRC_POLYNOMIAL_HEX_ANSI  0x8005U
@@ -203,21 +208,22 @@ ADS131M0XError ads131m0xReadRegister(const ADS131M0X* const dev, const uint8_t a
 		return ADS131M0X_ERROR_NOT_INITIALIZED;
 
 	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
+	const uint8_t frame_bytes = (1U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
 
 	/* Frame 1: send RREG command */
 	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
 	memset(tx_buf, 0, sizeof(tx_buf));
-	uint16_t opcode = ADS131M0X_CMD_RREG | ((uint16_t)address << 7);
+	uint16_t opcode = ADS131M0X_CMD_RREG | ((uint16_t)address << 7U);
 	packWord(tx_buf, opcode, dev->word_length);
 
-	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, bytes_per_word);
+	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
 	if (err != ADS131M0X_ERROR_OK)
 		return err;
 
 	/* Frame 2: read register value */
 	uint8_t rx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
 	memset(rx_buf, 0, sizeof(rx_buf));
-	err = ads131m0xRead(dev, rx_buf, bytes_per_word);
+	err = ads131m0xRead(dev, rx_buf, frame_bytes);
 	if (err != ADS131M0X_ERROR_OK)
 		return err;
 
@@ -237,14 +243,16 @@ ADS131M0XError ads131m0xWriteRegister(const ADS131M0X* const dev, const uint8_t 
 	if (dev->is_locked)
 		return ADS131M0X_ERROR_LOCKED;
 
+	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
+	const uint8_t frame_bytes = (1U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
+
 	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
 	memset(tx_buf, 0, sizeof(tx_buf));
-	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
 	uint16_t opcode = ADS131M0X_CMD_WREG | ((uint16_t)address << 7U);
 	packWord(tx_buf, opcode, dev->word_length);
 	packWord(&tx_buf[bytes_per_word], value, dev->word_length);
 
-	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, 2 * bytes_per_word);
+	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
 	if (err != ADS131M0X_ERROR_OK)
 		return err;
 
@@ -263,6 +271,8 @@ ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t 
 		return ADS131M0X_ERROR_NOT_INITIALIZED;
 
 	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
+	const uint8_t frame_bytes = (1U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
+
 	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
 	uint8_t rx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
 
@@ -271,7 +281,7 @@ ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t 
 	uint16_t opcode = ADS131M0X_CMD_RREG | ((uint16_t)address << 7U) | ((count - 1U) & 0x7FU);
 	packWord(tx_buf, opcode, dev->word_length);
 
-	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, bytes_per_word);
+	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
 	if (err != ADS131M0X_ERROR_OK)
 		return err;
 
@@ -280,10 +290,10 @@ ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t 
 	for (uint8_t i = 0; i < count; i++)
 	{
 		memset(rx_buf, 0, sizeof(rx_buf));
-		err = ads131m0xWrite(dev, tx_buf, bytes_per_word);
+		err = ads131m0xWrite(dev, tx_buf, frame_bytes);
 		if (err != ADS131M0X_ERROR_OK)
 			return err;
-		err = ads131m0xRead(dev, rx_buf, bytes_per_word);
+		err = ads131m0xRead(dev, rx_buf, frame_bytes);
 		if (err != ADS131M0X_ERROR_OK)
 			return err;
 		value[i] = ((uint16_t)rx_buf[bytes_per_word] << 8U) | rx_buf[bytes_per_word + 1U];
@@ -306,9 +316,11 @@ ADS131M0XError ads131m0xWriteRegisters(const ADS131M0X* const dev, const uint8_t
 	if (dev->is_locked)
 		return ADS131M0X_ERROR_LOCKED;
 
+	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
+	const uint8_t frame_bytes = (1U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
+
 	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
 	memset(tx_buf, 0, sizeof(tx_buf));
-	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
 	uint16_t opcode = ADS131M0X_CMD_WREG | ((uint16_t)address << 7U) | ((count - 1U) & 0x7FU);
 	packWord(tx_buf, opcode, dev->word_length);
 	for (uint8_t i = 0; i < count; i++)
@@ -316,7 +328,7 @@ ADS131M0XError ads131m0xWriteRegisters(const ADS131M0X* const dev, const uint8_t
 		packWord(&tx_buf[(1 + i) * bytes_per_word], value[i], dev->word_length);
 	}
 
-	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, (1 + count) * bytes_per_word);
+	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
 	if (err != ADS131M0X_ERROR_OK)
 		return err;
 

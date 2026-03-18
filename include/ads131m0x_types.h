@@ -9,6 +9,9 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
+// ── ADS131M04 ──────────────────────────────────────────────────────────────
+#define ADS131M0X_CHANNEL_COUNT 4U // Adjust for your device (4, 6, or 8)
+
 // ── Error codes ──────────────────────────────────────────────────────────────
 typedef enum
 {
