@@ -202,18 +202,33 @@ ADS131M0XError ads131m0xReadRegister(const ADS131M0X* const dev, const uint8_t a
 	if (!dev->is_initialized)
 		return ADS131M0X_ERROR_NOT_INITIALIZED;
 
-	uint16_t response = 0;
+	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
+
+	/* Frame 1: send RREG command */
+	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
+	memset(tx_buf, 0, sizeof(tx_buf));
 	uint16_t opcode = ADS131M0X_CMD_RREG | ((uint16_t)address << 7);
-	ADS131M0XError err = sendCommand(dev, opcode, &response);
+	packWord(tx_buf, opcode, dev->word_length);
+
+	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, bytes_per_word);
 	if (err != ADS131M0X_ERROR_OK)
 		return err;
+
+	/* Frame 2: read register value */
+	uint8_t rx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
+	memset(rx_buf, 0, sizeof(rx_buf));
+	err = ads131m0xRead(dev, rx_buf, bytes_per_word);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
+
+	*value = ((uint16_t)rx_buf[bytes_per_word] << 8U) | rx_buf[bytes_per_word + 1U];
 
 	return ADS131M0X_ERROR_OK;
 }
 
 ADS131M0XError ads131m0xWriteRegister(const ADS131M0X* const dev, const uint8_t address, const uint16_t value)
 {
-	if (dev == NULL || value == NULL)
+	if (dev == NULL)
 		return ADS131M0X_ERROR_NULL_PARAM;
 
 	if (!dev->is_initialized)
@@ -225,7 +240,7 @@ ADS131M0XError ads131m0xWriteRegister(const ADS131M0X* const dev, const uint8_t 
 	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
 	memset(tx_buf, 0, sizeof(tx_buf));
 	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
-	uint16_t opcode = ADS131M0X_CMD_WREG | ((uint16_t)address << 7);
+	uint16_t opcode = ADS131M0X_CMD_WREG | ((uint16_t)address << 7U);
 	packWord(tx_buf, opcode, dev->word_length);
 	packWord(&tx_buf[bytes_per_word], value, dev->word_length);
 
@@ -241,22 +256,37 @@ ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t 
 	if (dev == NULL || value == NULL)
 		return ADS131M0X_ERROR_NULL_PARAM;
 
-	if (count > ADS131M0X_MAX_BURST_COUNT)
+	if (count > ADS131M0X_MAX_BURST_COUNT || count == 0)
 		return ADS131M0X_ERROR_INVALID_PARAM;
 
 	if (!dev->is_initialized)
 		return ADS131M0X_ERROR_NOT_INITIALIZED;
 
-	uint16_t opcode = ADS131M0X_CMD_RREG | ((uint16_t)address << 7) | ((count - 1U) & 0x7FU);
-	ADS131M0XError err = sendCommand(dev, opcode, &value[0]);
+	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
+	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
+	uint8_t rx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
+
+	/* Frame 1: send RREG command with register count */
+	memset(tx_buf, 0, sizeof(tx_buf));
+	uint16_t opcode = ADS131M0X_CMD_RREG | ((uint16_t)address << 7U) | ((count - 1U) & 0x7FU);
+	packWord(tx_buf, opcode, dev->word_length);
+
+	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, bytes_per_word);
 	if (err != ADS131M0X_ERROR_OK)
 		return err;
 
-	for (uint8_t i = 1; i < count; i++)
+	/* Frames 2..N+1: send NULL, extract register data from word 1 each time */
+	memset(tx_buf, 0, sizeof(tx_buf));
+	for (uint8_t i = 0; i < count; i++)
 	{
-		err = sendCommand(dev, ADS131M0X_CMD_NULL, &value[i]);
+		memset(rx_buf, 0, sizeof(rx_buf));
+		err = ads131m0xWrite(dev, tx_buf, bytes_per_word);
 		if (err != ADS131M0X_ERROR_OK)
 			return err;
+		err = ads131m0xRead(dev, rx_buf, bytes_per_word);
+		if (err != ADS131M0X_ERROR_OK)
+			return err;
+		value[i] = ((uint16_t)rx_buf[bytes_per_word] << 8U) | rx_buf[bytes_per_word + 1U];
 	}
 
 	return ADS131M0X_ERROR_OK;
@@ -267,7 +297,7 @@ ADS131M0XError ads131m0xWriteRegisters(const ADS131M0X* const dev, const uint8_t
 	if (dev == NULL || value == NULL)
 		return ADS131M0X_ERROR_NULL_PARAM;
 
-	if (count > ADS131M0X_MAX_BURST_COUNT)
+	if (count > ADS131M0X_MAX_BURST_COUNT || count == 0)
 		return ADS131M0X_ERROR_INVALID_PARAM;
 
 	if (!dev->is_initialized)
@@ -279,7 +309,7 @@ ADS131M0XError ads131m0xWriteRegisters(const ADS131M0X* const dev, const uint8_t
 	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
 	memset(tx_buf, 0, sizeof(tx_buf));
 	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
-	uint16_t opcode = ADS131M0X_CMD_WREG | ((uint16_t)address << 7) | ((count - 1U) & 0x7FU);
+	uint16_t opcode = ADS131M0X_CMD_WREG | ((uint16_t)address << 7U) | ((count - 1U) & 0x7FU);
 	packWord(tx_buf, opcode, dev->word_length);
 	for (uint8_t i = 0; i < count; i++)
 	{
