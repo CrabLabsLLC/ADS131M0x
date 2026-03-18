@@ -62,13 +62,18 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
     dev->hal.syncResetSet(true);
     dev->hal.delayMs(1); // let device boot
 
-    uint16_t response = 0;
-    ADS131M0XError err = sendCommand(dev, ADS131M0X_CMD_NULL, &response);
+    uint8_t rx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
+    memset(rx_buf, 0, sizeof(rx_buf));
+	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
+	const uint8_t frame_bytes    = (1U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
+
+    ADS131M0XError err = ads131m0xRead(dev, rx_buf, frame_bytes);
     if (err != ADS131M0X_ERROR_OK)
         return err;
 
-    if (response != ADS131M0X_RESP_RESET_OK)
-        return ADS131M0X_ERROR_ID_MISMATCH;
+	const uint16_t response = ((uint16_t)rx_buf[0] << 8) | ((uint16_t)rx_buf[1]);
+	if (response != ADS131M0X_RESP_RESET_OK)
+		return ADS131M0X_ERROR_ID_MISMATCH;
 
     dev->is_initialized = true;
 
@@ -97,14 +102,27 @@ ADS131M0XError ads131m0xReset(ADS131M0X* const dev)
 	if (dev->is_locked)
 		return ADS131M0X_ERROR_LOCKED;
 
-	uint16_t response = 0;
-    ADS131M0XError err = sendCommand(dev, ADS131M0X_CMD_RESET, &response);
+	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
+	memset(tx_buf, 0, sizeof(tx_buf));
+	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
+	const uint8_t frame_bytes    = (1U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
+	packWord(tx_buf, (uint16_t)ADS131M0X_CMD_RESET, dev->word_length);
+
+    ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
     if (err != ADS131M0X_ERROR_OK)
         return err;
-    dev->hal.delayMs(1); // Wait for device to complete internal reset
 
-    if (response != ADS131M0X_RESP_RESET_OK)
-        return ADS131M0X_ERROR_SPI;
+	dev->hal.delayMs(1); // Wait for device to complete internal reset
+
+	uint8_t rx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
+	memset(rx_buf, 0, sizeof(rx_buf));
+	err = ads131m0xRead(dev, rx_buf, frame_bytes);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
+
+	const uint16_t response = ((uint16_t)rx_buf[0] << 8) | ((uint16_t)rx_buf[1]);
+	if (response != ADS131M0X_RESP_RESET_OK)
+		return ADS131M0X_ERROR_SPI;
 
     dev->word_length = ADS131M0X_WLENGTH_24_BIT;  // power-on default
     dev->active_channel_count = ADS131M0X_CHANNEL_COUNT;
