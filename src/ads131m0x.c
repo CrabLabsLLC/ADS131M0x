@@ -1,3 +1,7 @@
+/**
+ * @file ads131m0x.c
+ * @brief ADS131M0x multi-channel delta-sigma ADC driver implementation.
+ */
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -10,7 +14,7 @@
 #define ADS131M0X_CRC_POLYNOMIAL_HEX_CCITT 0x1021U
 #define ADS131M0X_CRC_POLYNOMIAL_HEX_ANSI  0x8005U
 
-// ── Forward Declarations ──────────────────────────────────────────────────────
+// ── Static Forward Declarations ─────────────────────────────────────────────────
 static uint8_t bytesPerWord(ADS131M0XWordLength word_length);
 static void packWord(uint8_t* buf, uint16_t word, ADS131M0XWordLength word_length);
 static int32_t signExtend(const uint8_t* bytes, ADS131M0XWordLength word_length);
@@ -18,7 +22,7 @@ static uint16_t calculateCRC(uint16_t crc_polynomial, const uint8_t* data, uint8
 static ADS131M0XError sendCommand(const ADS131M0X* const dev, ADS131M0XCommand command, uint16_t* const response);
 static ADS131M0XError checkCRC(const ADS131M0X* const dev, const uint8_t* buf);
 
-// ── Public Functions ────────────────────────────────────────────────────────
+// ── Initialization / Lifecycle ──────────────────────────────────────────────────
 ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal)
 {
 	if (dev == NULL || hal == NULL)
@@ -27,34 +31,35 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
 	if (hal->spiRead == NULL || hal->spiWrite == NULL || hal->drdyGet == NULL || hal->syncResetSet == NULL || hal->delayMs == NULL)
 		return ADS131M0X_ERROR_NULL_PARAM;
 
-    dev->hal = *hal;
-    dev->is_initialized = false;
-    dev->is_locked = false;
-    dev->word_length = ADS131M0X_WLENGTH_24_BIT;  // power-on default
-    dev->active_channel_count = ADS131M0X_CHANNEL_COUNT;
-    dev->crc.is_enabled = false;
-    dev->crc.type = ADS131M0X_CRC_POLYNOMIAL_CCITT;
+	dev->hal = *hal;
+	dev->is_initialized = false;
+	dev->is_locked = false;
+	dev->word_length = ADS131M0X_WLENGTH_24_BIT;
+	dev->active_channel_count = ADS131M0X_CHANNEL_COUNT;
+	dev->crc.is_enabled = false;
+	dev->crc.type = ADS131M0X_CRC_POLYNOMIAL_CCITT;
 
-    dev->hal.syncResetSet(false);
-    dev->hal.delayMs(1); // hold for at least 1ms
-    dev->hal.syncResetSet(true);
-    dev->hal.delayMs(1); // let device boot
+	/* Hardware reset via SYNC/RESET pin */
+	dev->hal.syncResetSet(false);
+	dev->hal.delayMs(1);
+	dev->hal.syncResetSet(true);
+	dev->hal.delayMs(1);
 
-    uint8_t rx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
-    memset(rx_buf, 0, sizeof(rx_buf));
+	/* Read the initial frame — device outputs FF24h after reset */
+	uint8_t rx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
+	memset(rx_buf, 0, sizeof(rx_buf));
 	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
-	// Status + CRC + Channel words
-	const uint8_t frame_bytes    = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
+	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
 
-    ADS131M0XError err = ads131m0xRead(dev, rx_buf, frame_bytes);
-    if (err != ADS131M0X_ERROR_OK)
-        return err;
+	ADS131M0XError err = ads131m0xRead(dev, rx_buf, frame_bytes);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
 
 	const uint16_t response = ((uint16_t)rx_buf[0] << 8) | ((uint16_t)rx_buf[1]);
 	if (response != ADS131M0X_RESP_RESET_OK)
 		return ADS131M0X_ERROR_ID_MISMATCH;
 
-    dev->is_initialized = true;
+	dev->is_initialized = true;
 
 	return ADS131M0X_ERROR_OK;
 }
@@ -64,8 +69,8 @@ ADS131M0XError ads131m0xDeinit(ADS131M0X* const dev)
 	if (dev == NULL)
 		return ADS131M0X_ERROR_NULL_PARAM;
 
-    dev->is_initialized = false;
-    dev->hal = (ADS131M0XHAL){0}; // zero all function pointers — prevents stale HAL calls
+	dev->is_initialized = false;
+	dev->hal = (ADS131M0XHAL){0};
 
 	return ADS131M0X_ERROR_OK;
 }
@@ -84,15 +89,14 @@ ADS131M0XError ads131m0xReset(ADS131M0X* const dev)
 	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
 	memset(tx_buf, 0, sizeof(tx_buf));
 	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
-	// Status + CRC + Channel words
 	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
 	packWord(tx_buf, (uint16_t)ADS131M0X_CMD_RESET, dev->word_length);
 
-    ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
-    if (err != ADS131M0X_ERROR_OK)
-        return err;
+	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
 
-	dev->hal.delayMs(1); // Wait for device to complete internal reset
+	dev->hal.delayMs(1);
 
 	uint8_t rx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
 	memset(rx_buf, 0, sizeof(rx_buf));
@@ -104,11 +108,12 @@ ADS131M0XError ads131m0xReset(ADS131M0X* const dev)
 	if (response != ADS131M0X_RESP_RESET_OK)
 		return ADS131M0X_ERROR_SPI;
 
-    dev->word_length = ADS131M0X_WLENGTH_24_BIT;  // power-on default
-    dev->active_channel_count = ADS131M0X_CHANNEL_COUNT;
-    dev->is_locked = false;
-    dev->crc.is_enabled = false;
-    dev->crc.type = ADS131M0X_CRC_POLYNOMIAL_CCITT;
+	/* Restore power-on defaults in device handle */
+	dev->word_length = ADS131M0X_WLENGTH_24_BIT;
+	dev->active_channel_count = ADS131M0X_CHANNEL_COUNT;
+	dev->is_locked = false;
+	dev->crc.is_enabled = false;
+	dev->crc.type = ADS131M0X_CRC_POLYNOMIAL_CCITT;
 
 	return ADS131M0X_ERROR_OK;
 }
@@ -127,7 +132,7 @@ ADS131M0XError ads131m0xReadChipId(const ADS131M0X* const dev, uint16_t* const i
 int64_t ads131m0xConvertToMicrovolts(int32_t raw_code, ADS131M0XGain gain)
 {
 	// voltage_uv = raw * ADS131M0X_REFERENCE_VOLTAGE_UV / (gain_multiplier * 2^23)
-	const uint64_t gain_multiplier = 1ULL << (uint64_t)gain;
+	const uint32_t gain_multiplier = 1U << (uint32_t)gain;
 	return raw_code * ADS131M0X_REFERENCE_VOLTAGE_UV / (gain_multiplier * ADS131M0X_23_BITS);
 }
 
@@ -404,7 +409,6 @@ ADS131M0XError ads131m0xReadRegister(const ADS131M0X* const dev, const uint8_t a
 		return ADS131M0X_ERROR_NOT_INITIALIZED;
 
 	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
-	// Status + CRC + Channel words
 	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
 
 	/* Frame 1: send RREG command */
@@ -448,7 +452,6 @@ ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t 
 		return ADS131M0X_ERROR_NOT_INITIALIZED;
 
 	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
-	// Status + CRC + Channel words
 	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
 
 	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
@@ -495,7 +498,6 @@ ADS131M0XError ads131m0xWriteRegister(const ADS131M0X* const dev, const uint8_t 
 		return ADS131M0X_ERROR_LOCKED;
 
 	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
-	// Status + CRC + Channel words
 	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
 
 	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
@@ -526,7 +528,6 @@ ADS131M0XError ads131m0xWriteRegisters(const ADS131M0X* const dev, const uint8_t
 		return ADS131M0X_ERROR_LOCKED;
 
 	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
-	// Status + CRC + Channel words
 	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
 
 	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
@@ -552,6 +553,7 @@ const char* ads131m0xErrorToString(ADS131M0XError err)
 		case ADS131M0X_ERROR_OK: return "OK";
 		case ADS131M0X_ERROR_NULL_PARAM: return "NULL_PARAM";
 		case ADS131M0X_ERROR_INVALID_PARAM: return "INVALID_PARAM";
+		case ADS131M0X_ERROR_INVALID_CHANNEL: return "INVALID_CHANNEL";
 		case ADS131M0X_ERROR_NOT_INITIALIZED: return "NOT_INITIALIZED";
 		case ADS131M0X_ERROR_LOCKED: return "LOCKED";
 		case ADS131M0X_ERROR_SPI: return "SPI";
@@ -561,7 +563,7 @@ const char* ads131m0xErrorToString(ADS131M0XError err)
 	}
 }
 
-// ── Bare Bones API ──────────────────────────────────────────────────────────
+// ── Raw SPI Access ──────────────────────────────────────────────────────────────
 ADS131M0XError ads131m0xRead(const ADS131M0X* const dev, void* const value, const uint8_t count)
 {
 	if (dev == NULL || value == NULL)

@@ -1,3 +1,11 @@
+/**
+ * @file ads131m0x_registers.h
+ * @brief ADS131M0x register addresses, field shifts, and masks.
+ *
+ * Register definitions follow the ADS131M04 datasheet (SBAS890D, Rev D, May 2021).
+ * All fields are documented per Table 8-12 and the individual register descriptions
+ * in Section 8.6.
+ */
 #pragma once
 #ifndef ADS131M0X_REGISTERS_H
 #define ADS131M0X_REGISTERS_H
@@ -82,39 +90,51 @@ extern "C" {
 #define ADS131M0X_STATUS_DRDY0_MASK     (0x01U << ADS131M0X_STATUS_DRDY0_SHIFT)
 
 // ── Register 0x02: MODE ──────────────────────────────────────────────────────
+// Controls SPI framing, CRC, timeout, and DRDY pin behavior.
+// Default 0x0510 = CRC disabled, 24-bit words, timeout enabled, DRDY logic-low.
 #define ADS131M0X_MODE_ADDRESS          0x02
 #define ADS131M0X_MODE_DEFAULT          0x0510
 
+// Bit 13: Register-map CRC output enable (1 = CRC appended to output frames)
 #define ADS131M0X_MODE_REG_CRC_EN_SHIFT 13U
 #define ADS131M0X_MODE_REG_CRC_EN_MASK  (0x01U << ADS131M0X_MODE_REG_CRC_EN_SHIFT)
 
+// Bit 12: Input CRC validation enable (1 = device checks CRC on DIN frames)
 #define ADS131M0X_MODE_RX_CRC_EN_SHIFT  12U
 #define ADS131M0X_MODE_RX_CRC_EN_MASK   (0x01U << ADS131M0X_MODE_RX_CRC_EN_SHIFT)
 
+// Bit 11: CRC polynomial select (0 = CCITT 0x1021, 1 = ANSI 0x8005)
 #define ADS131M0X_MODE_CRC_TYPE_SHIFT   11U
 #define ADS131M0X_MODE_CRC_TYPE_MASK    (0x01U << ADS131M0X_MODE_CRC_TYPE_SHIFT)
 
+// Bit 10: Software reset (write 1 to trigger; self-clears)
 #define ADS131M0X_MODE_RESET_SHIFT      10U
 #define ADS131M0X_MODE_RESET_MASK       (0x01U << ADS131M0X_MODE_RESET_SHIFT)
 
+// Bits [9:8]: SPI word length (00=16, 01=24, 10=32-zero, 11=32-sign)
 #define ADS131M0X_MODE_WLENGTH_SHIFT    8U
 #define ADS131M0X_MODE_WLENGTH_MASK     (0x03U << ADS131M0X_MODE_WLENGTH_SHIFT)
 
+// Bit 4: SPI timeout enable (1 = timeout resets SPI if SCLK stalls)
 #define ADS131M0X_MODE_TIMEOUT_SHIFT    4U
 #define ADS131M0X_MODE_TIMEOUT_MASK     (0x01U << ADS131M0X_MODE_TIMEOUT_SHIFT)
 
+// Bits [3:2]: DRDY signal source (00=most-lagging, 01=logic-OR, 10=most-leading)
 #define ADS131M0X_MODE_DRDY_SEL_SHIFT   2U
 #define ADS131M0X_MODE_DRDY_SEL_MASK    (0x03U << ADS131M0X_MODE_DRDY_SEL_SHIFT)
 
+// Bit 1: DRDY pin high-impedance when CS is high (1 = Hi-Z)
 #define ADS131M0X_MODE_DRDY_HIZ_SHIFT   1U
 #define ADS131M0X_MODE_DRDY_HIZ_MASK    (0x01U << ADS131M0X_MODE_DRDY_HIZ_SHIFT)
 
+// Bit 0: DRDY output format (0 = logic-low until read, 1 = pulse)
 #define ADS131M0X_MODE_DRDY_FMT_SHIFT   0U
 #define ADS131M0X_MODE_DRDY_FMT_MASK    (0x01U << ADS131M0X_MODE_DRDY_FMT_SHIFT)
 
 // ── Register 0x03: CLOCK ─────────────────────────────────────────────────────
+// Controls channel enables, turbo mode, oversampling ratio, and power mode.
 // CH7_EN–CH4_EN are reserved (always 0) on the ADS131M04.
-// Default value depends on channel count: all active channels enabled, OSR=1024, PWR=HR.
+// Default: all active channels enabled, OSR=1024, PWR=HR.
 #if   (ADS131M0X_CHANNEL_COUNT == 8)
 #define ADS131M0X_CLOCK_DEFAULT         0xFF0E
 #elif (ADS131M0X_CHANNEL_COUNT == 7)
@@ -159,12 +179,15 @@ extern "C" {
 #define ADS131M0X_CLOCK_CH0_EN_SHIFT    8U
 #define ADS131M0X_CLOCK_CH0_EN_MASK     (0x01U << ADS131M0X_CLOCK_CH0_EN_SHIFT)
 
+// Bit 5: Turbo mode (1 = doubles max data rate)
 #define ADS131M0X_CLOCK_TBM_SHIFT       5U
 #define ADS131M0X_CLOCK_TBM_MASK        (0x01U << ADS131M0X_CLOCK_TBM_SHIFT)
 
+// Bits [4:2]: Oversampling ratio (000=128 ... 111=16384)
 #define ADS131M0X_CLOCK_OSR_SHIFT       2U
 #define ADS131M0X_CLOCK_OSR_MASK        (0x07U << ADS131M0X_CLOCK_OSR_SHIFT)
 
+// Bits [1:0]: Power mode (00=very-low, 01=low, 10=high-resolution)
 #define ADS131M0X_CLOCK_PWR_SHIFT       0U
 #define ADS131M0X_CLOCK_PWR_MASK        (0x03U << ADS131M0X_CLOCK_PWR_SHIFT)
 
@@ -203,24 +226,31 @@ extern "C" {
 #define ADS131M0X_GAIN2_PGAGAIN4_MASK   (0x07U << ADS131M0X_GAIN2_PGAGAIN4_SHIFT)
 
 // ── Register 0x06: CFG ───────────────────────────────────────────────────────
+// Controls global-chop mode and current-detect fault monitoring.
 #define ADS131M0X_CFG_ADDRESS           0x06
 #define ADS131M0X_CFG_DEFAULT           0x0600
 
+// Bits [12:9]: Global-chop delay — number of modulator clocks between polarity swaps
 #define ADS131M0X_CFG_GC_DLY_SHIFT      9U
 #define ADS131M0X_CFG_GC_DLY_MASK       (0x0FU << ADS131M0X_CFG_GC_DLY_SHIFT)
 
+// Bit 8: Global-chop enable (1 = enabled)
 #define ADS131M0X_CFG_GC_EN_SHIFT       8U
 #define ADS131M0X_CFG_GC_EN_MASK        (0x01U << ADS131M0X_CFG_GC_EN_SHIFT)
 
+// Bit 7: Current-detect all channels (1 = all channels, 0 = individual)
 #define ADS131M0X_CFG_CD_ALLCH_SHIFT    7U
 #define ADS131M0X_CFG_CD_ALLCH_MASK     (0x01U << ADS131M0X_CFG_CD_ALLCH_SHIFT)
 
+// Bits [6:4]: Current-detect consecutive over-threshold sample count
 #define ADS131M0X_CFG_CD_NUM_SHIFT      4U
 #define ADS131M0X_CFG_CD_NUM_MASK       (0x07U << ADS131M0X_CFG_CD_NUM_SHIFT)
 
+// Bits [3:1]: Current-detect measurement window length
 #define ADS131M0X_CFG_CD_LEN_SHIFT      1U
 #define ADS131M0X_CFG_CD_LEN_MASK       (0x07U << ADS131M0X_CFG_CD_LEN_SHIFT)
 
+// Bit 0: Current-detect enable (1 = enabled)
 #define ADS131M0X_CFG_CD_EN_SHIFT       0U
 #define ADS131M0X_CFG_CD_EN_MASK        (0x01U << ADS131M0X_CFG_CD_EN_SHIFT)
 

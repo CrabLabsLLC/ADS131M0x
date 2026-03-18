@@ -1,3 +1,7 @@
+/**
+ * @file ads131m0x_types.h
+ * @brief ADS131M0x type definitions — enums, structs, HAL, and device handle.
+ */
 #pragma once
 #ifndef ADS131M0X_TYPES_H
 #define ADS131M0X_TYPES_H
