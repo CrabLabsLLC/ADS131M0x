@@ -116,8 +116,138 @@ ADS131M0XError ads131m0xReset(ADS131M0X* const dev)
 int64_t ads131m0xConvertToMicrovolts(int32_t raw_code, ADS131M0XGain gain)
 {
 	// voltage_uv = raw * ADS131M0X_REFERENCE_VOLTAGE_UV / (gain_multiplier * 2^23)
-	const uint32_t gain_multiplier = 1U << (uint8_t)gain;
+	const uint64_t gain_multiplier = 1ULL << (uint64_t)gain;
 	return raw_code * ADS131M0X_REFERENCE_VOLTAGE_UV / (gain_multiplier * ADS131M0X_23_BITS);
+}
+
+ADS131M0XError ads131m0xConfigure(ADS131M0X* const dev, const ADS131M0XConfig* const config)
+{
+	if (dev == NULL || config == NULL)
+		return ADS131M0X_ERROR_NULL_PARAM;
+
+	if (!dev->is_initialized)
+		return ADS131M0X_ERROR_NOT_INITIALIZED;
+
+	if (dev->is_locked)
+		return ADS131M0X_ERROR_LOCKED;
+
+	ADS131M0XError err;
+
+	/* Pack MODE register */
+	uint16_t mode_val = 0;
+	mode_val |= ((uint16_t)config->crc.output_enabled << ADS131M0X_MODE_REG_CRC_EN_SHIFT) & ADS131M0X_MODE_REG_CRC_EN_MASK;
+	mode_val |= ((uint16_t)config->crc.input_enabled << ADS131M0X_MODE_RX_CRC_EN_SHIFT) & ADS131M0X_MODE_RX_CRC_EN_MASK;
+	mode_val |= ((uint16_t)config->crc.polynomial << ADS131M0X_MODE_CRC_TYPE_SHIFT) & ADS131M0X_MODE_CRC_TYPE_MASK;
+	mode_val |= ((uint16_t)config->word_length << ADS131M0X_MODE_WLENGTH_SHIFT) & ADS131M0X_MODE_WLENGTH_MASK;
+	mode_val |= ((uint16_t)config->spi_timeout_enabled << ADS131M0X_MODE_TIMEOUT_SHIFT) & ADS131M0X_MODE_TIMEOUT_MASK;
+	mode_val |= ((uint16_t)config->data_ready.selection << ADS131M0X_MODE_DRDY_SEL_SHIFT) & ADS131M0X_MODE_DRDY_SEL_MASK;
+	mode_val |= ((uint16_t)config->data_ready.hiz << ADS131M0X_MODE_DRDY_HIZ_SHIFT) & ADS131M0X_MODE_DRDY_HIZ_MASK;
+	mode_val |= ((uint16_t)config->data_ready.format << ADS131M0X_MODE_DRDY_FMT_SHIFT) & ADS131M0X_MODE_DRDY_FMT_MASK;
+
+	/* Pack CLOCK register */
+	uint16_t clock_val = 0;
+	clock_val |= ((1U << ADS131M0X_CHANNEL_COUNT) - 1U) << 8U;
+	clock_val |= ((uint16_t)config->turbo_mode << ADS131M0X_CLOCK_TBM_SHIFT) & ADS131M0X_CLOCK_TBM_MASK;
+	clock_val |= ((uint16_t)config->oversampling_ratio << ADS131M0X_CLOCK_OSR_SHIFT) & ADS131M0X_CLOCK_OSR_MASK;
+	clock_val |= ((uint16_t)config->power_mode << ADS131M0X_CLOCK_PWR_SHIFT) & ADS131M0X_CLOCK_PWR_MASK;
+
+	/* Write MODE + CLOCK as burst */
+	uint16_t mode_clock[2] = { mode_val, clock_val };
+	err = ads131m0xWriteRegisters(dev, ADS131M0X_MODE_ADDRESS, mode_clock, 2);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
+
+	/* Update device state */
+	dev->word_length = config->word_length;
+	dev->crc.is_enabled = config->crc.output_enabled;
+	dev->crc.type = config->crc.polynomial;
+
+	/* Pack CFG register */
+	uint16_t cfg_val = 0;
+	cfg_val |= ((uint16_t)config->global_chop.delay << ADS131M0X_CFG_GC_DLY_SHIFT) & ADS131M0X_CFG_GC_DLY_MASK;
+	cfg_val |= ((uint16_t)config->global_chop.is_enabled << ADS131M0X_CFG_GC_EN_SHIFT) & ADS131M0X_CFG_GC_EN_MASK;
+	cfg_val |= ((uint16_t)config->current_detect.all_channels << ADS131M0X_CFG_CD_ALLCH_SHIFT) & ADS131M0X_CFG_CD_ALLCH_MASK;
+	cfg_val |= ((uint16_t)config->current_detect.num << ADS131M0X_CFG_CD_NUM_SHIFT) & ADS131M0X_CFG_CD_NUM_MASK;
+	cfg_val |= ((uint16_t)config->current_detect.len << ADS131M0X_CFG_CD_LEN_SHIFT) & ADS131M0X_CFG_CD_LEN_MASK;
+	cfg_val |= ((uint16_t)config->current_detect.is_enabled << ADS131M0X_CFG_CD_EN_SHIFT) & ADS131M0X_CFG_CD_EN_MASK;
+
+	/* Write CFG register */
+	err = ads131m0xWriteRegister(dev, ADS131M0X_CFG_ADDRESS, cfg_val);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
+
+	/* Pack THRSHLD_MSB and THRSHLD_LSB */
+	uint16_t threshold_msb = (uint16_t)((config->current_detect.threshold >> 8) & 0xFFFF);
+	uint16_t threshold_lsb = (uint16_t)(((config->current_detect.threshold & 0xFF) << 8) | ((uint16_t)config->dc_block & 0x0F));
+
+	/* Write THRSHLD_MSB and THRSHLD_LSB as burst */
+	uint16_t threshold[2] = { threshold_msb, threshold_lsb };
+	err = ads131m0xWriteRegisters(dev, ADS131M0X_THRSHLD_MSB_ADDRESS, threshold, 2);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
+
+	return ADS131M0X_ERROR_OK;
+}
+
+ADS131M0XError ads131m0xConfigureChannel(ADS131M0X* const dev, uint8_t channel, const ADS131M0XChannelConfig* const config)
+{
+	if (dev == NULL || config == NULL)
+		return ADS131M0X_ERROR_NULL_PARAM;
+
+	if (!dev->is_initialized)
+		return ADS131M0X_ERROR_NOT_INITIALIZED;
+
+	if (dev->is_locked)
+		return ADS131M0X_ERROR_LOCKED;
+
+	if (channel >= ADS131M0X_CHANNEL_COUNT)
+		return ADS131M0X_ERROR_INVALID_CHANNEL;
+
+	ADS131M0XError err;
+
+	const uint8_t base = ADS131M0X_CH_BASE_ADDRESS + (channel * ADS131M0X_CH_STRIDE);
+	
+	/* Update CLOCK register (read-modify-write) */
+	uint16_t clock_val = 0;
+	err = ads131m0xReadRegister(dev, ADS131M0X_CLOCK_ADDRESS, &clock_val);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
+
+	if (config->is_enabled)
+		clock_val |= (uint16_t)(1U << (8U + channel));
+	else
+		clock_val &= ~(uint16_t)(1U << (8U + channel));
+
+	err = ads131m0xWriteRegister(dev, ADS131M0X_CLOCK_ADDRESS, clock_val);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
+
+	/* Pack CHn_CFG register */
+	uint16_t chn_cfg = 0;
+	chn_cfg |= ((uint16_t)config->phase_delay_cycles << ADS131M0X_CHn_CFG_PHASE_SHIFT) & ADS131M0X_CHn_CFG_PHASE_MASK;
+	chn_cfg |= ((uint16_t)config->dc_block_disabled << ADS131M0X_CHn_CFG_DCBLK_DIS_SHIFT) & ADS131M0X_CHn_CFG_DCBLK_DIS_MASK;
+	chn_cfg |= ((uint16_t)config->mux << ADS131M0X_CHn_CFG_MUX_SHIFT) & ADS131M0X_CHn_CFG_MUX_MASK;
+
+	/* Write CHn_CFG register */
+	err = ads131m0xWriteRegister(dev, base, chn_cfg);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
+
+	/* Pack OCAL_MSB and OCAL_LSB register */
+	uint16_t ocal_msb = (uint16_t)((config->offset_cal >> 8) & 0xFFFF);
+	uint16_t ocal_lsb = (uint16_t)((config->offset_cal & 0xFF) << 8);
+
+	/* Pack GCAL_MSB and GCAL_LSB register */
+	uint16_t gcal_msb = (uint16_t)((config->gain_cal >> 8) & 0xFFFF);
+	uint16_t gcal_lsb = (uint16_t)((config->gain_cal & 0xFF) << 8);
+
+	/* Write all 4 channel registers as burst */
+	uint16_t ch_regs[4] = { ocal_msb, ocal_lsb, gcal_msb, gcal_lsb };
+	err = ads131m0xWriteRegisters(dev, base, ch_regs, 4);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
+
+	return ADS131M0X_ERROR_OK;
 }
 
 ADS131M0XError ads131m0xReadData(const ADS131M0X* const dev, ADS131M0XData* const data)

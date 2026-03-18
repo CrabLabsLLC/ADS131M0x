@@ -12,8 +12,8 @@ extern "C" {
 #include "ads131m0x_types.h"
 #include "ads131m0x_registers.h"
 
-#define ADS131M0X_REFERENCE_VOLTAGE_UV 1200000U
-#define ADS131M0X_23_BITS 8388608U
+#define ADS131M0X_REFERENCE_VOLTAGE_UV 1200000LL
+#define ADS131M0X_23_BITS 8388608LL
 
 // ── Initialization ────────────────────────────────────────────────────────────
 /**
@@ -92,8 +92,9 @@ ADS131M0XError ads131m0xReadData(const ADS131M0X* const dev, ADS131M0XData* cons
  * @param raw_code The raw code from the ADC.
  * @param gain The gain setting.
  * @return The voltage in microvolts.
+ * @note voltage_uv = raw * ADS131M0X_REFERENCE_VOLTAGE_UV / (gain_multiplier * ADS131M0X_23_BITS)
  */
-int64_t ads131m0xConvertToMicrovolts(int32_t raw_code, ADS131M0XGain gain); // voltage_uv = raw * ADS131M0X_REFERENCE_VOLTAGE_V * 1e6 / (gain * 2^23)
+int64_t ads131m0xConvertToMicrovolts(int32_t raw_code, ADS131M0XGain gain);
 
 // ── Register access ───────────────────────────────────────────────────────────
 /**
