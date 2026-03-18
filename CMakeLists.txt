@@ -17,4 +17,7 @@ else()
 		src/ads131m0x.c
 	)
 	target_include_directories(ads131m0x PUBLIC include)
+
+	enable_testing()
+	add_subdirectory(tests)
 endif()
