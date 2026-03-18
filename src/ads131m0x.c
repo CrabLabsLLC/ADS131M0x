@@ -16,6 +16,7 @@ static void packWord(uint8_t* buf, uint16_t word, ADS131M0XWordLength word_lengt
 static int32_t signExtend(const uint8_t* bytes, ADS131M0XWordLength word_length);
 static uint16_t calculateCRC(uint16_t crc_polynomial, const uint8_t* data, uint8_t length_bytes, uint16_t initialValue);
 static ADS131M0XError sendCommand(const ADS131M0X* const dev, ADS131M0XCommand command, uint16_t* const response);
+static ADS131M0XError checkCRC(const ADS131M0X* const dev, const uint8_t* buf);
 
 // ── Public Functions ────────────────────────────────────────────────────────
 ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal)
@@ -125,7 +126,6 @@ ADS131M0XError ads131m0xReadData(const ADS131M0X* const dev, ADS131M0XData* cons
 
 	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
 	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word; // Status + CRC + Channel words
-	const uint8_t crc_offset = (1U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
 
 	/* Frame 1: send NULL command */
 	memset(tx_buf, 0, sizeof(tx_buf));
@@ -144,20 +144,14 @@ ADS131M0XError ads131m0xReadData(const ADS131M0X* const dev, ADS131M0XData* cons
 	/* Extract status from word[0] */
 	data->status = ((uint16_t)rx_buf[0] << 8U) | rx_buf[1];
 
-	/* Extract CRC from word[CHANNEL_COUNT+1] — always present, zeros when disabled */
+	/* Extract CRC from last word — always present on wire */
 	data->crc = ((uint16_t)rx_buf[crc_offset] << 8U) | rx_buf[crc_offset + 1U];
 
 	/* Validate CRC if enabled */
-	if (dev->crc.is_enabled)
-	{
-		const uint16_t crc_polynomial = (dev->crc.type == ADS131M0X_CRC_POLYNOMIAL_ANSI)
-										? ADS131M0X_CRC_POLYNOMIAL_HEX_ANSI
-										: ADS131M0X_CRC_POLYNOMIAL_HEX_CCITT;
-		uint16_t calculated_crc = calculateCRC(crc_polynomial, rx_buf, crc_offset, 0xFFFFU);
-		data->crc_valid = (calculated_crc == data->crc);
-	}
-	else
-		data->crc_valid = true;
+	ADS131M0XError crc_err = checkCRC(dev, rx_buf);
+	if (crc_err != ADS131M0X_ERROR_OK && crc_err != ADS131M0X_ERROR_CRC)
+		return crc_err;
+	data->crc_valid = (crc_err == ADS131M0X_ERROR_OK);
 
 	/* Extract channel data from words 1..CHANNEL_COUNT */
 	for (uint8_t i = 0; i < ADS131M0X_CHANNEL_COUNT; i++)
@@ -281,6 +275,11 @@ ADS131M0XError ads131m0xReadRegister(const ADS131M0X* const dev, const uint8_t a
 	if (err != ADS131M0X_ERROR_OK)
 		return err;
 
+	/* Validate CRC */
+	ADS131M0XError crc_err = checkCRC(dev, rx_buf);
+	if (crc_err != ADS131M0X_ERROR_OK)
+		return crc_err;
+
 	*value = ((uint16_t)rx_buf[0] << 8U) | rx_buf[1];
 
 	return ADS131M0X_ERROR_OK;
@@ -320,6 +319,11 @@ ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t 
 	err = ads131m0xRead(dev, rx_buf, frame_bytes);
 	if (err != ADS131M0X_ERROR_OK)
 		return err;
+
+	/* Validate CRC */
+	ADS131M0XError crc_err = checkCRC(dev, rx_buf);
+	if (crc_err != ADS131M0X_ERROR_OK)
+		return crc_err;
 
 	for (uint8_t i = 0; i < count; i++)
 	{
@@ -523,8 +527,7 @@ static uint16_t calculateCRC(uint16_t crc_polynomial, const uint8_t* data, uint8
 static ADS131M0XError sendCommand(const ADS131M0X* const dev, ADS131M0XCommand command, uint16_t* const response)
 {
 	uint8_t bytes_per_word = bytesPerWord(dev->word_length);
-	// Status + CRC + Channel words
-	uint8_t frame_bytes    = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
+	uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word; // Status + CRC + Channel words
 
 	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
 	memset(tx_buf, 0, sizeof(tx_buf));
@@ -541,17 +544,9 @@ static ADS131M0XError sendCommand(const ADS131M0X* const dev, ADS131M0XCommand c
 	if (err != ADS131M0X_ERROR_OK)
 		return err;
 
-	if (dev->crc.is_enabled)
-	{
-		const uint16_t crc_polynomial = (dev->crc.type == ADS131M0X_CRC_POLYNOMIAL_ANSI) ? ADS131M0X_CRC_POLYNOMIAL_HEX_ANSI : ADS131M0X_CRC_POLYNOMIAL_HEX_CCITT;
-
-		const uint8_t crc_offset = (ADS131M0X_CHANNEL_COUNT + 1U) * bytes_per_word;
-		const uint16_t calculated_crc  = calculateCRC(crc_polynomial, rx_buf, crc_offset, 0xFFFFU);
-		const uint16_t received_crc  = ((uint16_t)rx_buf[crc_offset] << 8) | rx_buf[crc_offset + 1U];
-
-		if (calculated_crc != received_crc)
-			return ADS131M0X_ERROR_CRC;
-	}
+	ADS131M0XError crc_err = checkCRC(dev, rx_buf);
+	if (crc_err != ADS131M0X_ERROR_OK)
+		return crc_err;
 
 	if (response != NULL)
 		*response = ((uint16_t)rx_buf[0] << 8) | rx_buf[1];
@@ -559,13 +554,16 @@ static ADS131M0XError sendCommand(const ADS131M0X* const dev, ADS131M0XCommand c
 	return ADS131M0X_ERROR_OK;
 }
 
-static ADS131M0XError checkCRC(const ADS131M0X* const dev, const uint8_t* buf, uint8_t crc_offset)
+static ADS131M0XError checkCRC(const ADS131M0X* const dev, const uint8_t* buf)
 {
 	if (dev == NULL || buf == NULL)
 		return ADS131M0X_ERROR_NULL_PARAM;
 
-	if (crc_offset >= ADS131M0X_FRAME_SIZE_MAX_BYTES)
-		return ADS131M0X_ERROR_INVALID_PARAM;
+	if (!dev->crc.is_enabled)
+		return ADS131M0X_ERROR_OK;
+
+	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
+	const uint8_t crc_offset = (ADS131M0X_CHANNEL_COUNT + 1U) * bytes_per_word;
 
 	const uint16_t crc_polynomial = (dev->crc.type == ADS131M0X_CRC_POLYNOMIAL_ANSI)
 									? ADS131M0X_CRC_POLYNOMIAL_HEX_ANSI
