@@ -28,7 +28,7 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
 	if (dev == NULL || hal == NULL)
 		return ADS131M0X_ERROR_NULL_PARAM;
 
-	if (hal->spiRead == NULL || hal->spiWrite == NULL || hal->drdyGet == NULL || hal->syncResetSet == NULL || hal->delayMs == NULL)
+	if (hal->spiRead == NULL || hal->spiWrite == NULL || hal->drdyGet == NULL || hal->delayMs == NULL)
 		return ADS131M0X_ERROR_NULL_PARAM;
 
 	dev->hal = *hal;
@@ -38,17 +38,31 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
 	dev->crc.is_enabled = false;
 	dev->crc.type = ADS131M0X_CRC_POLYNOMIAL_CCITT;
 
+	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
+	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
+
 	/* Hardware reset via SYNC/RESET pin */
-	dev->hal.syncResetSet(false);
-	dev->hal.delayMs(1);
-	dev->hal.syncResetSet(true);
-	dev->hal.delayMs(1);
+	if (dev->hal.syncResetSet != NULL) {
+		dev->hal.syncResetSet(false);
+		dev->hal.delayMs(1);
+		dev->hal.syncResetSet(true);
+		dev->hal.delayMs(1);
+	} else {
+		/* Send software RESET command if no pin provided */
+		uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
+		memset(tx_buf, 0, sizeof(tx_buf));
+		packWord(tx_buf, ADS131M0X_CMD_RESET, dev->word_length);
+
+		ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
+		if (err != ADS131M0X_ERROR_OK)
+			return err;
+
+		dev->hal.delayMs(1);
+	}
 
 	/* Read the initial frame — device outputs FF24h after reset */
 	uint8_t rx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
 	memset(rx_buf, 0, sizeof(rx_buf));
-	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
-	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
 
 	ADS131M0XError err = ads131m0xRead(dev, rx_buf, frame_bytes);
 	if (err != ADS131M0X_ERROR_OK)
