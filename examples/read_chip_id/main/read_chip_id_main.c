@@ -33,7 +33,7 @@ static int halSpiRead(void* const data, const uint8_t length)
         .rx_buffer = data,
     };
 
-    esp_err_t ret = spi_device_polling_transmit(s_spi_dev, &txn);
+    esp_err_t ret = spi_device_transmit(s_spi_dev, &txn);
 
     if (ret == ESP_OK) {
         ESP_LOGI("SPI_RX", "Read %d bytes:", length);
@@ -54,7 +54,7 @@ static int halSpiWrite(const void* const data, const uint8_t length)
     ESP_LOGI("SPI_TX", "Writing %d bytes:", length);
     ESP_LOG_BUFFER_HEX("SPI_TX", data, length);
 
-    esp_err_t ret = spi_device_polling_transmit(s_spi_dev, &txn);
+    esp_err_t ret = spi_device_transmit(s_spi_dev, &txn);
 
     return (ret == ESP_OK) ? 0 : 1;
 }
