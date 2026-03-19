@@ -849,9 +849,9 @@ void testReadChipIdReturnsIdFromDevice(void)
     uint16_t id = 0;
     initDev(&dev);
 
-    mockPrimeRx(ADS131M0X_ID_DEFAULT);
+    mockPrimeRx(ADS131M0X_ID_MODEL_PATTERN | 0x0005);
     TEST_ASSERT_EQUAL(ADS131M0X_ERROR_OK, ads131m0xReadChipId(&dev, &id));
-    TEST_ASSERT_EQUAL_HEX16(ADS131M0X_ID_DEFAULT, id);
+    TEST_ASSERT_EQUAL_HEX16(ADS131M0X_ID_MODEL_PATTERN | 0x0005, id);
 }
 
 

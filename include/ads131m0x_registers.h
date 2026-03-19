@@ -30,7 +30,8 @@ extern "C" {
 // ── Register 0x00: ID ────────────────────────────────────────────────────────
 // Read-only. CHANCNT[11:8] always reads the channel count. REVID[7:0] reserved.
 #define ADS131M0X_ID_ADDRESS            0x00
-#define ADS131M0X_ID_DEFAULT            (0x2000 | ((ADS131M0X_CHANNEL_COUNT) << 8))
+#define ADS131M0X_ID_MODEL_MASK         0xFF00
+#define ADS131M0X_ID_MODEL_PATTERN      (0x2000 | ((ADS131M0X_CHANNEL_COUNT) << 8))
 
 #define ADS131M0X_ID_CHANCNT_SHIFT      8U
 #define ADS131M0X_ID_CHANCNT_MASK       (0x0FU << ADS131M0X_ID_CHANCNT_SHIFT)
