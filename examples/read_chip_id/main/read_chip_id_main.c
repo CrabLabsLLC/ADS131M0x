@@ -1,17 +1,3 @@
-/*README:
-    This example demonstrates how to read the chip ID from the ADS131M0X.
-    It uses the HAL callbacks to communicate with the device.
-    
-    To compile this example, use the following command:
-    idf.py build
-    
-    To flash this example to the device, use the following command:
-    idf.py flash
-    
-    To monitor the output of this example, use the following command:
-    idf.py monitor
-*/
-
 #include <stdio.h>
 #include <string.h>
 
@@ -59,9 +45,7 @@ static int halSpiRead(void* const data, const uint8_t length)
         .rx_buffer = rx_buf,
     };
 
-    gpio_set_level(PIN_CS_ADC, 0);
     esp_err_t ret = spi_device_polling_transmit(s_spi_dev, &txn);
-    gpio_set_level(PIN_CS_ADC, 1);
 
     if (ret == ESP_OK) {
         memcpy(data, rx_buf, length);
@@ -98,9 +82,7 @@ static int halSpiWrite(const void* const data, const uint8_t length)
     ESP_LOGI("SPI_TX", "Writing %d bytes:", length);
     ESP_LOG_BUFFER_HEX("SPI_TX", tx_buf, length);
 
-    gpio_set_level(PIN_CS_ADC, 0);
     esp_err_t ret = spi_device_polling_transmit(s_spi_dev, &txn);
-    gpio_set_level(PIN_CS_ADC, 1);
 
     heap_caps_free(tx_buf);
     heap_caps_free(rx_buf);
@@ -134,13 +116,12 @@ static void spiInit(void)
     const spi_device_interface_config_t dev_cfg = {
         .clock_speed_hz = CLOCK_SPEED_HZ,
         .mode           = 1,
-        .spics_io_num   = -1,   /* Manual CS control */
+        .spics_io_num   = PIN_CS_ADC,
         .queue_size     = 10,
+        .cs_ena_pretrans = 1,
+        .cs_ena_posttrans = 1,
     };
     ESP_ERROR_CHECK(spi_bus_add_device(SPI2_HOST, &dev_cfg, &s_spi_dev));
-
-    gpio_set_direction(PIN_CS_ADC, GPIO_MODE_OUTPUT);
-    gpio_set_level(PIN_CS_ADC, 1);
 
     gpio_set_direction(PIN_ADC_DRDY, GPIO_MODE_INPUT);
     gpio_set_pull_mode(PIN_ADC_DRDY, GPIO_PULLUP_ONLY);
