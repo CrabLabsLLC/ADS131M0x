@@ -27,65 +27,34 @@ static ADS131M0X s_adc;
 
 static int halSpiRead(void* const data, const uint8_t length)
 {
-    /* Allocate DMA-capable buffers */
-    uint8_t* tx_buf = (uint8_t*)heap_caps_malloc(length, MALLOC_CAP_DMA);
-    uint8_t* rx_buf = (uint8_t*)heap_caps_malloc(length, MALLOC_CAP_DMA);
-    if (!tx_buf || !rx_buf) {
-        if (tx_buf) heap_caps_free(tx_buf);
-        if (rx_buf) heap_caps_free(rx_buf);
-        return 1;
-    }
-
-    memset(tx_buf, 0, length);
-    memset(rx_buf, 0, length);
-
     spi_transaction_t txn = {
         .length    = length * 8,
-        .tx_buffer = tx_buf,
-        .rx_buffer = rx_buf,
+        .tx_buffer = NULL,
+        .rx_buffer = data,
     };
 
     esp_err_t ret = spi_device_polling_transmit(s_spi_dev, &txn);
 
     if (ret == ESP_OK) {
-        memcpy(data, rx_buf, length);
         ESP_LOGI("SPI_RX", "Read %d bytes:", length);
-        ESP_LOG_BUFFER_HEX("SPI_RX", rx_buf, length);
+        ESP_LOG_BUFFER_HEX("SPI_RX", data, length);
     }
-
-    heap_caps_free(tx_buf);
-    heap_caps_free(rx_buf);
 
     return (ret == ESP_OK) ? 0 : 1;
 }
 
 static int halSpiWrite(const void* const data, const uint8_t length)
 {
-    /* Allocate DMA-capable buffers */
-    uint8_t* tx_buf = (uint8_t*)heap_caps_malloc(length, MALLOC_CAP_DMA);
-    uint8_t* rx_buf = (uint8_t*)heap_caps_malloc(length, MALLOC_CAP_DMA);
-    if (!tx_buf || !rx_buf) {
-        if (tx_buf) heap_caps_free(tx_buf);
-        if (rx_buf) heap_caps_free(rx_buf);
-        return 1;
-    }
-
-    memcpy(tx_buf, data, length);
-    memset(rx_buf, 0, length);
-
     spi_transaction_t txn = {
         .length    = length * 8,
-        .tx_buffer = tx_buf,
-        .rx_buffer = rx_buf,
+        .tx_buffer = data,
+        .rx_buffer = NULL,
     };
 
     ESP_LOGI("SPI_TX", "Writing %d bytes:", length);
-    ESP_LOG_BUFFER_HEX("SPI_TX", tx_buf, length);
+    ESP_LOG_BUFFER_HEX("SPI_TX", data, length);
 
     esp_err_t ret = spi_device_polling_transmit(s_spi_dev, &txn);
-
-    heap_caps_free(tx_buf);
-    heap_caps_free(rx_buf);
 
     return (ret == ESP_OK) ? 0 : 1;
 }
