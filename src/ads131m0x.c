@@ -35,7 +35,6 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
 	dev->is_initialized = false;
 	dev->is_locked = false;
 	dev->word_length = ADS131M0X_WLENGTH_24_BIT;
-	dev->active_channel_count = ADS131M0X_CHANNEL_COUNT;
 	dev->crc.is_enabled = false;
 	dev->crc.type = ADS131M0X_CRC_POLYNOMIAL_CCITT;
 
@@ -98,9 +97,13 @@ ADS131M0XError ads131m0xReset(ADS131M0X* const dev)
 
 	dev->hal.delayMs(1);
 
+	/* Device resets to 24-bit word length, so we must frame the response accordingly */
+	const uint8_t reset_bytes_per_word = bytesPerWord(ADS131M0X_WLENGTH_24_BIT);
+	const uint8_t reset_frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * reset_bytes_per_word;
+
 	uint8_t rx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
 	memset(rx_buf, 0, sizeof(rx_buf));
-	err = ads131m0xRead(dev, rx_buf, frame_bytes);
+	err = ads131m0xRead(dev, rx_buf, reset_frame_bytes);
 	if (err != ADS131M0X_ERROR_OK)
 		return err;
 
@@ -110,7 +113,6 @@ ADS131M0XError ads131m0xReset(ADS131M0X* const dev)
 
 	/* Restore power-on defaults in device handle */
 	dev->word_length = ADS131M0X_WLENGTH_24_BIT;
-	dev->active_channel_count = ADS131M0X_CHANNEL_COUNT;
 	dev->is_locked = false;
 	dev->crc.is_enabled = false;
 	dev->crc.type = ADS131M0X_CRC_POLYNOMIAL_CCITT;
@@ -235,6 +237,23 @@ ADS131M0XError ads131m0xConfigureChannel(ADS131M0X* const dev, uint8_t channel, 
 		clock_val &= ~(uint16_t)(1U << (8U + channel));
 
 	err = ads131m0xWriteRegister(dev, ADS131M0X_CLOCK_ADDRESS, clock_val);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
+
+	/* Update GAIN register (read-modify-write) */
+	const uint8_t gain_reg = ADS131M0X_GAIN1_ADDRESS + (channel / 4U);
+	const uint8_t gain_shift = (channel % 4U) * 4U;
+	const uint16_t gain_mask = 0x07U << gain_shift;
+
+	uint16_t gain_val = 0;
+	err = ads131m0xReadRegister(dev, gain_reg, &gain_val);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
+
+	gain_val &= ~gain_mask;
+	gain_val |= ((uint16_t)config->gain << gain_shift) & gain_mask;
+
+	err = ads131m0xWriteRegister(dev, gain_reg, gain_val);
 	if (err != ADS131M0X_ERROR_OK)
 		return err;
 
@@ -617,15 +636,10 @@ static void packWord(uint8_t* buf, uint16_t word, ADS131M0XWordLength word_lengt
 			buf[2] = 0x00U;
 			break;
 		case ADS131M0X_WLENGTH_32_BIT_ZERO:
+		case ADS131M0X_WLENGTH_32_BIT_SIGN:
 			buf[0] = (uint8_t)(word >> 8U);
 			buf[1] = (uint8_t)(word & 0xFFU);
 			buf[2] = 0x00U;
-			buf[3] = 0x00U;
-			break;
-		case ADS131M0X_WLENGTH_32_BIT_SIGN:
-			buf[0] = (word & 0x8000U) ? 0xFF : 0x00;
-			buf[1] = (uint8_t)(word >> 8U);
-			buf[2] = (uint8_t)(word & 0xFFU);
 			buf[3] = 0x00U;
 			break;
 		default:

@@ -275,7 +275,6 @@ typedef struct
 	bool is_locked;
 
 	ADS131M0XWordLength word_length;
-	uint8_t active_channel_count;
 
 	struct
 	{
