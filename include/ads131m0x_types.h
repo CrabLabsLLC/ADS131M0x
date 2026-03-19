@@ -16,6 +16,104 @@ extern "C" {
 // ── ADS131M04 ──────────────────────────────────────────────────────────────
 #define ADS131M0X_CHANNEL_COUNT 4U // Adjust for your device (4, 6, or 8)
 
+// ── Global configuration ──────────────────────────────────────────────────────
+typedef struct
+{
+	// CLOCK register
+	ADS131M0XPowerMode power_mode;
+	ADS131M0XOSR oversampling_ratio;
+	bool turbo_mode;
+
+	// MODE register — SPI framing
+	ADS131M0XWordLength word_length;
+	bool spi_timeout_enabled;
+
+	struct
+	{
+		bool output_enabled;
+		bool input_enabled;
+		ADS131M0XCRCPolynomial polynomial;
+	} crc;
+
+	// MODE register — DRDY output pin
+	struct
+	{
+		ADS131M0XDataReadySelect selection;
+		bool hiz;
+		ADS131M0XDataReadyFormat format;
+	} data_ready;
+
+	// CFG register — global-chop
+	struct
+	{
+		bool is_enabled;
+		ADS131M0XGlobalChopDelay delay;
+	} global_chop;
+
+	// THRSHLD_LSB register — DC-block
+	ADS131M0XDCBlock dc_block;
+
+	// CFG + THRSHLD registers — current-detect fault
+	struct
+	{
+		bool is_enabled;
+		bool all_channels;
+		ADS131M0XCurrentDetectNum num;
+		ADS131M0XCurrentDetectLen len;
+		int32_t threshold;
+	} current_detect;
+
+} ADS131M0XConfig;
+
+// ── Channel configuration ─────────────────────────────────────────────────────
+typedef struct
+{
+	bool is_enabled;
+	ADS131M0XGain gain;
+	ADS131M0XMux mux;
+	int16_t phase_delay_cycles;
+	bool dc_block_disabled;
+	int32_t offset_cal;
+	uint32_t gain_cal;
+} ADS131M0XChannelConfig;
+
+// ── Hardware abstraction layer ────────────────────────────────────────────────
+typedef struct
+{
+	int  (*spiRead)(void* const data, const uint8_t length_bytes);
+	int  (*spiWrite)(const void* const data, const uint8_t length_bytes);
+	bool (*drdyGet)(void);
+	void (*syncResetSet)(bool state);
+	void (*delayMs)(uint32_t delay_ms);
+} ADS131M0XHAL;
+
+// ── Device handle ─────────────────────────────────────────────────────────────
+typedef struct
+{
+	ADS131M0XHAL hal;
+
+	bool is_initialized;
+	bool is_locked;
+
+	ADS131M0XWordLength word_length;
+
+	struct
+	{
+		bool is_enabled;
+		ADS131M0XCRCPolynomial type;
+	} crc;
+
+} ADS131M0X;
+
+// ── Conversion data ───────────────────────────────────────────────────────────
+typedef struct
+{
+	uint16_t status;
+	int32_t  channel_data[ADS131M0X_CHANNEL_COUNT];
+	uint16_t crc;
+	bool     crc_valid;
+} ADS131M0XData;
+
 // ── Error codes ──────────────────────────────────────────────────────────────
 typedef enum
 {
@@ -194,104 +292,6 @@ typedef enum
 	ADS131M0X_CD_LEN_64  = 0x06U,
 	ADS131M0X_CD_LEN_128 = 0x07U,
 } ADS131M0XCurrentDetectLen;
-
-// ── Global configuration ──────────────────────────────────────────────────────
-typedef struct
-{
-	// CLOCK register
-	ADS131M0XPowerMode power_mode;
-	ADS131M0XOSR oversampling_ratio;
-	bool turbo_mode;
-
-	// MODE register — SPI framing
-	ADS131M0XWordLength word_length;
-	bool spi_timeout_enabled;
-	
-	struct 
-	{
-		bool output_enabled;
-		bool input_enabled;
-		ADS131M0XCRCPolynomial polynomial;
-	} crc;
-
-	// MODE register — DRDY output pin
-	struct
-	{
-		ADS131M0XDataReadySelect selection;
-		bool hiz;
-		ADS131M0XDataReadyFormat format;
-	} data_ready;
-
-	// CFG register — global-chop
-	struct
-	{
-		bool is_enabled;
-		ADS131M0XGlobalChopDelay delay;
-	} global_chop;
-
-	// THRSHLD_LSB register — DC-block
-	ADS131M0XDCBlock dc_block;
-
-	// CFG + THRSHLD registers — current-detect fault
-	struct
-	{
-		bool is_enabled;
-		bool all_channels;
-		ADS131M0XCurrentDetectNum num;
-		ADS131M0XCurrentDetectLen len;
-		int32_t threshold;
-	} current_detect;
-
-} ADS131M0XConfig;
-
-// ── Channel configuration ─────────────────────────────────────────────────────
-typedef struct
-{
-	bool is_enabled;
-	ADS131M0XGain gain;
-	ADS131M0XMux mux;
-	int16_t phase_delay_cycles;
-	bool dc_block_disabled;
-	int32_t offset_cal;
-	uint32_t gain_cal;
-} ADS131M0XChannelConfig;
-
-// ── Hardware abstraction layer ────────────────────────────────────────────────
-typedef struct
-{
-	int  (*spiRead)(void* const data, const uint8_t length_bytes);
-	int  (*spiWrite)(const void* const data, const uint8_t length_bytes);
-	bool (*drdyGet)(void);
-	void (*syncResetSet)(bool state);
-	void (*delayMs)(uint32_t delay_ms);
-} ADS131M0XHAL;
-
-// ── Device handle ─────────────────────────────────────────────────────────────
-typedef struct
-{
-	ADS131M0XHAL hal;
-
-	bool is_initialized;
-	bool is_locked;
-
-	ADS131M0XWordLength word_length;
-
-	struct
-	{
-		bool is_enabled;
-		ADS131M0XCRCPolynomial type;
-	} crc;
-
-} ADS131M0X;
-
-// ── Conversion data ───────────────────────────────────────────────────────────
-typedef struct
-{
-	uint16_t status;
-	int32_t  channel_data[ADS131M0X_CHANNEL_COUNT];
-	uint16_t crc;
-	bool     crc_valid;
-} ADS131M0XData;
 
 #ifdef __cplusplus
 }
