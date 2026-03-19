@@ -42,12 +42,15 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
 	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
 
 	/* Hardware reset via SYNC/RESET pin */
-	if (dev->hal.syncResetSet != NULL) {
+	if (dev->hal.syncResetSet != NULL) 
+	{
 		dev->hal.syncResetSet(false);
 		dev->hal.delayMs(1);
 		dev->hal.syncResetSet(true);
 		dev->hal.delayMs(1);
-	} else {
+	} 
+	else 
+	{
 		/* Send software RESET command if no pin provided */
 		uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
 		memset(tx_buf, 0, sizeof(tx_buf));
