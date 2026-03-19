@@ -3,6 +3,19 @@
 #include <string.h>
 #include <stddef.h>
 
+/* How to run tests:
+*	1. Navigate to the component root
+*	2. Delete any stale build directory (if needed)
+*	3. Configure with CMake using the "debug" preset (uses Ninja)
+*		cmake --preset debug
+*	4. Build
+*		cmake --build --preset debug
+*	5. Run tests
+*		ctest --preset debug
+*	6. Or run executable directly
+*		.\build\tests\test_ads131m0x.exe
+*/
+
 /* ── Mock ─────────────────────────────────────────────────────────────────────
 *
 * The ADS131M0X SPI protocol is two-frame:
