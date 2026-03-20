@@ -8,6 +8,7 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 
 // ── Pin Definitions ──────────────────────────────────────────────────────────
 #define PIN_SPI_MOSI  GPIO_NUM_33
@@ -194,6 +195,8 @@ void app_main(void)
     }
 
     /* ── Acquisition loop ───────────────────────────────────────────────── */
+    int64_t start_us = esp_timer_get_time();
+
     while (sample_index < DATA_POINTS)
     {
         if (xSemaphoreTake(s_data_sem, portMAX_DELAY) == pdTRUE)
@@ -206,9 +209,15 @@ void app_main(void)
         }
     }
 
+    int64_t end_us = esp_timer_get_time();
+
     ads131m0xStandby(&s_adc);
 
     xSemaphoreTake(s_data_sem, portMAX_DELAY); // Clear the last semaphore flag
+
+    int64_t elapsed_us = end_us - start_us;
+    // Fs = 1/T (seconds)
+    double sampling_rate = (double)DATA_POINTS / ((double)elapsed_us / 1000000.0);
 
     ESP_LOGI(TAG, "DATA START");
     for (uint32_t i = 0; i < DATA_POINTS; i++)
@@ -216,6 +225,7 @@ void app_main(void)
         printf("%ld\n", (long)buffer[i]);
     }
     ESP_LOGI(TAG, "DATA END");
+    ESP_LOGI(TAG, "Elapsed: %lld us, Sampling rate: %.2f Hz", elapsed_us, sampling_rate);
 
     while(1)
     {
