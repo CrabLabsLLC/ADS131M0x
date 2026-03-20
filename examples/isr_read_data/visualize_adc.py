@@ -1,81 +1,53 @@
 """
-Capture ADC data from ESP32 via idf.py monitor and plot the waveform.
+Plot ADS131M0x ADC data pasted from idf.py monitor output.
 
 Usage:
-    python visualize_adc.py                  # auto-detect COM port
-    python visualize_adc.py --port COM7      # explicit port
-    python visualize_adc.py --baud 115200    # explicit baud rate
+    python visualize_adc.py
+    Then paste the monitor output (DATA START through DATA END + stats).
+    Press Enter on an empty line when done.
 """
 
-import argparse
 import re
-import subprocess
 import sys
 
-import serial
-import serial.tools.list_ports
 import matplotlib.pyplot as plt
 
 
-def find_esp_port():
-    """Auto-detect the first USB-serial port likely connected to an ESP32."""
-    for port in serial.tools.list_ports.comports():
-        desc = (port.description or "").lower()
-        if any(k in desc for k in ("cp210", "ch340", "ftdi", "usb", "uart")):
-            return port.device
-    return None
-
-
-def capture_data(port, baud):
-    """
-    Open the serial port, wait for DATA START / DATA END markers,
-    and return (samples, stats_line).
-    """
-    ser = serial.Serial(port, baud, timeout=1)
-    print(f"Listening on {port} @ {baud} baud  (waiting for DATA START ...)")
+def read_input():
+    """Read pasted monitor output, return (samples, stats_line)."""
+    print("Paste monitor output below (empty line to finish):\n")
 
     samples = []
     collecting = False
     stats_line = None
 
-    try:
-        while True:
-            raw = ser.readline()
-            if not raw:
-                continue
+    while True:
+        try:
+            line = input()
+        except EOFError:
+            break
 
-            line = raw.decode("utf-8", errors="replace").strip()
+        if line.strip() == "":
+            break
 
-            if "DATA START" in line:
-                collecting = True
-                samples.clear()
-                print(">>> DATA START received, collecting samples...")
-                continue
+        if "DATA START" in line:
+            collecting = True
+            samples.clear()
+            continue
 
-            if "DATA END" in line:
-                collecting = False
-                print(f">>> DATA END received, got {len(samples)} samples")
-                # Read the next few lines to grab timing stats
-                for _ in range(5):
-                    raw = ser.readline()
-                    if not raw:
-                        continue
-                    sline = raw.decode("utf-8", errors="replace").strip()
-                    if "Elapsed" in sline and "Sampling rate" in sline:
-                        stats_line = sline
-                        print(f">>> {stats_line}")
-                        break
-                break
+        if "DATA END" in line:
+            collecting = False
+            continue
 
-            if collecting:
-                try:
-                    samples.append(int(line))
-                except ValueError:
-                    pass  # skip non-integer log lines
-    except KeyboardInterrupt:
-        print("\nInterrupted.")
-    finally:
-        ser.close()
+        if "Elapsed" in line and "Sampling rate" in line:
+            stats_line = line.strip()
+            continue
+
+        if collecting:
+            try:
+                samples.append(int(line.strip()))
+            except ValueError:
+                pass
 
     return samples, stats_line
 
@@ -123,18 +95,13 @@ def plot_waveform(samples, elapsed_us, sampling_rate):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Capture & plot ADS131M0x ADC data from ESP32")
-    parser.add_argument("--port", type=str, default=None, help="Serial port (e.g. COM7)")
-    parser.add_argument("--baud", type=int, default=115200, help="Baud rate (default 115200)")
-    args = parser.parse_args()
-
-    port = args.port or find_esp_port()
-    if not port:
-        print("ERROR: No serial port found. Specify with --port COM7", file=sys.stderr)
-        sys.exit(1)
-
-    samples, stats_line = capture_data(port, args.baud)
+    samples, stats_line = read_input()
     elapsed_us, sampling_rate = parse_stats(stats_line)
+
+    print(f"\nParsed {len(samples)} samples")
+    if stats_line:
+        print(f"Stats: {stats_line}")
+
     plot_waveform(samples, elapsed_us, sampling_rate)
 
 

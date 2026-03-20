@@ -18,7 +18,7 @@
 #define PIN_ADC_DRDY  GPIO_NUM_37
 
 #define CLOCK_SPEED_HZ 8000000
-#define DATA_POINTS    500
+#define DATA_POINTS    200
 
 static const char* TAG = "main";
 
@@ -216,7 +216,7 @@ void app_main(void)
     xSemaphoreTake(s_data_sem, portMAX_DELAY); // Clear the last semaphore flag
 
     int64_t elapsed_us = end_us - start_us;
-    // Fs = 1/T (seconds)
+    // Fs = N / T (seconds)
     double sampling_rate = (double)DATA_POINTS / ((double)elapsed_us / 1000000.0);
 
     ESP_LOGI(TAG, "DATA START");
