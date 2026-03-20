@@ -5,6 +5,7 @@
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "esp_log.h"
 
@@ -16,14 +17,15 @@
 #define PIN_ADC_DRDY  GPIO_NUM_37
 
 #define CLOCK_SPEED_HZ 8000000
+#define DATA_POINTS    2000
 
 static const char* TAG = "main";
 
 static spi_device_handle_t s_spi_dev;
 static ADS131M0X s_adc;
 
-// ── ISR -> app_main notification handle ──────────────────────────────────────
-static TaskHandle_t s_app_main_task_handle;
+// ── ISR -> app_main semaphore ────────────────────────────────────────────────
+static SemaphoreHandle_t s_data_sem;
 
 // ── HAL Callbacks ────────────────────────────────────────────────────────────
 
@@ -35,14 +37,7 @@ static int halSpiRead(void* const data, const uint8_t length)
         .rx_buffer = data,
     };
 
-    esp_err_t ret = spi_device_transmit(s_spi_dev, &txn);
-
-    if (ret == ESP_OK) {
-        ESP_LOGI("SPI_RX", "Read %d bytes:", length);
-        ESP_LOG_BUFFER_HEX_LEVEL("SPI_RX", data, length, ESP_LOG_INFO);
-    }
-
-    return (ret == ESP_OK) ? 0 : 1;
+    return (spi_device_transmit(s_spi_dev, &txn) == ESP_OK) ? 0 : 1;
 }
 
 static int halSpiWrite(const void* const data, const uint8_t length)
@@ -53,12 +48,7 @@ static int halSpiWrite(const void* const data, const uint8_t length)
         .rx_buffer = NULL,
     };
 
-    ESP_LOGI("SPI_TX", "Writing %d bytes:", length);
-    ESP_LOG_BUFFER_HEX_LEVEL("SPI_TX", data, length, ESP_LOG_INFO);
-
-    esp_err_t ret = spi_device_transmit(s_spi_dev, &txn);
-
-    return (ret == ESP_OK) ? 0 : 1;
+    return (spi_device_transmit(s_spi_dev, &txn) == ESP_OK) ? 0 : 1;
 }
 
 static bool halDrdyGet(void)
@@ -76,7 +66,7 @@ static void halDelayMs(const uint32_t ms)
 static void IRAM_ATTR drdy_isr_handler(void* arg)
 {
     BaseType_t higher_priority_task_woken = pdFALSE;
-    vTaskNotifyGiveFromISR(s_app_main_task_handle, &higher_priority_task_woken);
+    xSemaphoreGiveFromISR(s_data_sem, &higher_priority_task_woken);
     portYIELD_FROM_ISR(higher_priority_task_woken);
 }
 
@@ -181,10 +171,16 @@ void app_main(void)
     }
     ESP_LOGI(TAG, "Dummy read STATUS: 0x%04X", data.status);
 
+    /* ── Create binary semaphore for ISR -> app_main signaling ─────────── */
+    s_data_sem = xSemaphoreCreateBinary();
+
     /* ── Install DRDY falling-edge interrupt ────────────────────────────── */
-    s_app_main_task_handle = xTaskGetCurrentTaskHandle();
     drdyInterruptInit();
     ESP_LOGI(TAG, "DRDY interrupt installed (GPIO %d, falling edge)", PIN_ADC_DRDY);
+
+    /* ── Data buffer ─────────────────────────────────────────────────────── */
+    int32_t buffer[DATA_POINTS];
+    uint32_t sample_index = 0;
 
     /* ── Wake ADC -> starts pulsing DRDY at 2 kHz ───────────────────────── */
     err = ads131m0xWakeup(&s_adc);
@@ -197,13 +193,28 @@ void app_main(void)
     /* ── Acquisition loop ───────────────────────────────────────────────── */
     while (1)
     {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        if (xSemaphoreTake(s_data_sem, portMAX_DELAY) == pdTRUE)
+        {
+            ESP_LOGI(TAG, "--- DATA START ---");
+            err = ads131m0xReadData(&s_adc, &data);
 
-        err = ads131m0xReadData(&s_adc, &data);
-        if (err != ADS131M0X_ERROR_OK)
-            continue;
+            buffer[sample_index++] = data.channel_data[0];
 
-        printf("%ld\n", (long)data.channel_data[0]);
-        halDelayMs(500);
+            if (sample_index >= DATA_POINTS) {
+                ESP_LOGI(TAG, "--- DATA END ---");
+
+                ads131m0xStandby(&s_adc);
+
+                for (uint32_t i = 0; i < DATA_POINTS; i++) {
+                    printf("%lu,%ld\n", (unsigned long)i, (long)buffer[i]);
+                }
+
+                halDelayMs(2000);
+
+                sample_index = 0;
+
+                ads131m0xWakeup(&s_adc);
+            }
+        }
     }
 }
