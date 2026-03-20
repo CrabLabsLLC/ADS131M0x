@@ -42,7 +42,7 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
 	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
 
 	/* Hardware reset via SYNC/RESET pin */
-	if (dev->hal.syncResetSet != NULL) 
+	if (dev->hal.syncResetSet != NULL)
 	{
 		dev->hal.syncResetSet(false);
 		dev->hal.delayMs(1);
@@ -60,8 +60,8 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
 		const uint16_t response = ((uint16_t)rx_buf[0] << 8) | ((uint16_t)rx_buf[1]);
 		if (response != ADS131M0X_RESP_RESET_OK)
 			return ADS131M0X_ERROR_SPI;
-	} 
-	else 
+	}
+	else
 	{
 		/* Send ads131m0xReset command if no pin provided */
 		ADS131M0XError err = ads131m0xReset(dev);
@@ -70,6 +70,11 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
 	}
 
 	dev->is_initialized = true;
+
+	/* ── Enter Standby Mode ─────────────────────────────────────────────── */
+	ADS131M0XError err = ads131m0xStandby(dev);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
 
 	return ADS131M0X_ERROR_OK;
 }
@@ -235,7 +240,7 @@ ADS131M0XError ads131m0xConfigureChannel(ADS131M0X* const dev, uint8_t channel, 
 	ADS131M0XError err;
 
 	const uint8_t base = ADS131M0X_CH_BASE_ADDRESS + (channel * ADS131M0X_CH_STRIDE);
-	
+
 	/* Update CLOCK register (read-modify-write) */
 	uint16_t clock_val = 0;
 	err = ads131m0xReadRegister(dev, ADS131M0X_CLOCK_ADDRESS, &clock_val);
