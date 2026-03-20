@@ -37,7 +37,7 @@ static int halSpiRead(void* const data, const uint8_t length)
 
     if (ret == ESP_OK) {
         ESP_LOGI("SPI_RX", "Read %d bytes:", length);
-        ESP_LOG_BUFFER_HEX("SPI_RX", data, length);
+        ESP_LOG_BUFFER_HEX_LEVEL("SPI_RX", data, length, ESP_LOG_INFO);
     }
 
     return (ret == ESP_OK) ? 0 : 1;
@@ -52,7 +52,7 @@ static int halSpiWrite(const void* const data, const uint8_t length)
     };
 
     ESP_LOGI("SPI_TX", "Writing %d bytes:", length);
-    ESP_LOG_BUFFER_HEX("SPI_TX", data, length);
+    ESP_LOG_BUFFER_HEX_LEVEL("SPI_TX", data, length, ESP_LOG_INFO);
 
     esp_err_t ret = spi_device_transmit(s_spi_dev, &txn);
 
@@ -133,9 +133,6 @@ void app_main(void)
         ESP_LOGE(TAG, "ads131m0xReadChipId failed: %s", ads131m0xErrorToString(err));
         return;
     }
-
-    const uint8_t num_channels = (chip_id & ADS131M0X_ID_CHANCNT_MASK) >> ADS131M0X_ID_CHANCNT_SHIFT;
-    const uint8_t revision     = (chip_id & ADS131M0X_ID_REVID_MASK)   >> ADS131M0X_ID_REVID_SHIFT;
 
     ESP_LOGI(TAG, "Chip ID: 0x%04X", chip_id);
 
