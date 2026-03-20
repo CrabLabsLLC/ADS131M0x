@@ -117,6 +117,13 @@ void app_main(void)
         return;
     }
     ESP_LOGI(TAG, "ADS131M0X initialized");
+    /* ── Enter Standby Mode ──────────────────────────────────────────────────── */
+    err = ads131m0xStandby(&s_adc);
+    if (err != ADS131M0X_ERROR_OK) {
+        ESP_LOGE(TAG, "ads131m0xStandby failed: %s", ads131m0xErrorToString(err));
+        return;
+    }
+    ESP_LOGI(TAG, "ADS131M0X in standby mode");
 
     /* ── Read chip ID ───────────────────────────────────────────────────── */
     uint16_t chip_id = 0;
