@@ -117,6 +117,7 @@ void app_main(void)
         return;
     }
     ESP_LOGI(TAG, "ADS131M0X initialized");
+
     /* ── Enter Standby Mode ──────────────────────────────────────────────────── */
     err = ads131m0xStandby(&s_adc);
     if (err != ADS131M0X_ERROR_OK) {
@@ -137,9 +138,57 @@ void app_main(void)
     const uint8_t revision     = (chip_id & ADS131M0X_ID_REVID_MASK)   >> ADS131M0X_ID_REVID_SHIFT;
 
     ESP_LOGI(TAG, "Chip ID: 0x%04X", chip_id);
-    ESP_LOGI(TAG, "  Channel count : %u", num_channels);
-    ESP_LOGI(TAG, "  Revision ID   : 0x%02X", revision);
-    ESP_LOGI(TAG, "  Expected      : 0x%04X (Mask: 0x%04X)", ADS131M0X_ID_MODEL_PATTERN, ADS131M0X_ID_MODEL_MASK);
-    ESP_LOGI(TAG, "  Match         : %s",
-             (chip_id & ADS131M0X_ID_MODEL_MASK) == ADS131M0X_ID_MODEL_PATTERN ? "YES" : "NO");
+
+    /* ── Configure ADC: 2 kHz, CRC ANSI ────────────────────────────────── */
+	// f_data = f_CLKIN / (OSR * turbo_div) = 8192000 / (4096 * 1) = 2000 Hz
+	const ADS131M0XConfig config =
+	{
+		.power_mode         = ADS131M0X_POWER_HIGH_RES,
+		.oversampling_ratio = ADS131M0X_OSR_4096,
+		.turbo_mode         = true,
+		.word_length        = ADS131M0X_WLENGTH_24_BIT,
+		.spi_timeout_enabled = true,
+		// .crc =
+		// {
+        //     .output_enabled = false,
+		// 	.input_enabled  = false,
+		// 	.polynomial     = ADS131M0X_CRC_POLYNOMIAL_ANSI,
+		// },
+		// .data_ready =
+		// {
+		// 	.selection = ADS131M0X_DRDY_SEL_MOST_LAGGING,
+		// 	.hiz       = false,
+		// 	.format    = ADS131M0X_DRDY_FMT_LOGIC_LOW,
+		// },
+	};
+	err = ads131m0xConfigure(&s_adc, &config);
+	if (err != ADS131M0X_ERROR_OK)
+	{
+		ESP_LOGE(TAG, "ads131m0xConfigure failed: %s", ads131m0xErrorToString(err));
+		return;
+	}
+    
+    /* ── Send NULL command to fetch STATUS and conversion data ─────────── */
+    ADS131M0XData data;
+    err = ads131m0xReadData(&s_adc, &data);
+    if (err != ADS131M0X_ERROR_OK)
+    {
+        ESP_LOGE(TAG, "ads131m0xReadData failed (NULL command): %s", ads131m0xErrorToString(err));
+        return;
+    }
+
+    /* ── Break down the received STATUS register ───────────────────────── */
+    uint16_t status = data.status;
+    ESP_LOGI(TAG, "Received STATUS: 0x%04X", status);
+    ESP_LOGI(TAG, "  LOCK        : %d", (status & ADS131M0X_STATUS_LOCK_MASK) ? 1 : 0);
+    ESP_LOGI(TAG, "  F_RESYNC    : %d", (status & ADS131M0X_STATUS_F_RESYNC_MASK) ? 1 : 0);
+    ESP_LOGI(TAG, "  REG_MAP     : %d", (status & ADS131M0X_STATUS_REG_MAP_MASK) ? 1 : 0);
+    ESP_LOGI(TAG, "  CRC_ERR     : %d", (status & ADS131M0X_STATUS_CRC_ERR_MASK) ? 1 : 0);
+    ESP_LOGI(TAG, "  CRC_TYPE    : %d (0=CCITT, 1=ANSI)", (status & ADS131M0X_STATUS_CRC_TYPE_MASK) ? 1 : 0);
+    ESP_LOGI(TAG, "  RESET       : %d", (status & ADS131M0X_STATUS_RESET_MASK) ? 1 : 0);
+    ESP_LOGI(TAG, "  WLENGTH     : %d (0=16b, 1=24b, 2=32b-z, 3=32b-s)", (status & ADS131M0X_STATUS_WLENGTH_MASK) >> ADS131M0X_STATUS_WLENGTH_SHIFT);
+    ESP_LOGI(TAG, "  DRDY3       : %d", (status & ADS131M0X_STATUS_DRDY3_MASK) ? 1 : 0);
+    ESP_LOGI(TAG, "  DRDY2       : %d", (status & ADS131M0X_STATUS_DRDY2_MASK) ? 1 : 0);
+    ESP_LOGI(TAG, "  DRDY1       : %d", (status & ADS131M0X_STATUS_DRDY1_MASK) ? 1 : 0);
+    ESP_LOGI(TAG, "  DRDY0       : %d", (status & ADS131M0X_STATUS_DRDY0_MASK) ? 1 : 0);
 }

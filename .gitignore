@@ -123,6 +123,7 @@ wheels/
 config.local.*
 .claude
 .vscode
+CLAUDE.md
 
 # Examples that might contain sensitive data
 examples/*/config.h
