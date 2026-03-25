@@ -28,6 +28,10 @@ static ADS131M0X s_adc;
 // ── ISR -> app_main semaphore ────────────────────────────────────────────────
 static SemaphoreHandle_t s_data_sem;
 
+// ── ISR timing accumulators ─────────────────────────────────────────────────
+static volatile int64_t s_time_sum  = 0;
+static volatile int64_t s_last_time = 0;
+
 // ── HAL Callbacks ────────────────────────────────────────────────────────────
 
 static int halSpiRead(void* const data, const uint8_t length)
@@ -82,6 +86,12 @@ static void halDelayMs(const uint32_t ms)
 
 static void IRAM_ATTR drdy_isr_handler(void* arg)
 {
+    int64_t now = esp_timer_get_time();
+
+    if (s_last_time != 0)
+        s_time_sum += now - s_last_time;
+    s_last_time = now;
+
     xSemaphoreGiveFromISR(s_data_sem, NULL);
 }
 
@@ -177,6 +187,25 @@ void app_main(void)
     }
     ESP_LOGI(TAG, "ADC configured: 2 kHz, 24-bit, high-res");
 
+    /* ── Configure CH0 gain ──────────────────────────────────────────── */
+    const ADS131M0XChannelConfig ch0_cfg =
+    {
+        .is_enabled         = true,
+        .gain               = ADS131M0X_GAIN_128,
+        .mux                = ADS131M0X_MUX_NORMAL,
+        .phase_delay_cycles = 0,
+        .dc_block_disabled  = false,
+        .offset_cal         = 0,
+        .gain_cal           = 0x800000,
+    };
+    err = ads131m0xConfigureChannel(&s_adc, 0, &ch0_cfg);
+    if (err != ADS131M0X_ERROR_OK)
+    {
+        ESP_LOGE(TAG, "Failed to configure CH0: %d", err);
+        return;
+    }
+    ESP_LOGI(TAG, "CH0 configured: gain=128x");
+
     /* ── Setup DRDY interrupt ─────────────────────────────────────────── */
     s_data_sem = xSemaphoreCreateBinary();
     drdyInterruptInit();
@@ -185,6 +214,10 @@ void app_main(void)
     /* ── Data buffer ─────────────────────────────────────────────────────── */
     static int32_t buffer[DATA_POINTS];
     uint32_t sample_index = 0;
+
+    /* ── Reset ISR timing before ADC starts pulsing DRDY ────────────────── */
+    s_time_sum  = 0;
+    s_last_time = 0;
 
     /* ── Wake ADC -> starts pulsing DRDY at 2 kHz ───────────────────────── */
     err = ads131m0xWakeup(&s_adc);
@@ -195,8 +228,6 @@ void app_main(void)
     }
 
     /* ── Acquisition loop ───────────────────────────────────────────────── */
-    int64_t start_us = esp_timer_get_time();
-
     while (sample_index < DATA_POINTS)
     {
         if (xSemaphoreTake(s_data_sem, portMAX_DELAY) == pdTRUE)
@@ -209,15 +240,12 @@ void app_main(void)
         }
     }
 
-    int64_t end_us = esp_timer_get_time();
-
     ads131m0xStandby(&s_adc);
 
     xSemaphoreTake(s_data_sem, portMAX_DELAY); // Clear the last semaphore flag
 
-    int64_t elapsed_us = end_us - start_us;
-    // Fs = N / T (seconds)
-    double sampling_rate = (double)DATA_POINTS / ((double)elapsed_us / 1000000.0);
+    // Fs = (N-1) / T: N samples yield N-1 intervals measured in the ISR
+    double sampling_rate = (double)(DATA_POINTS - 1) / ((double)s_time_sum / 1000000.0);
 
     ESP_LOGI(TAG, "DATA START");
     for (uint32_t i = 0; i < DATA_POINTS; i++)
@@ -225,7 +253,7 @@ void app_main(void)
         printf("%ld\n", (long)buffer[i]);
     }
     ESP_LOGI(TAG, "DATA END");
-    ESP_LOGI(TAG, "Elapsed: %lld us, Sampling rate: %.2f Hz", elapsed_us, sampling_rate);
+    ESP_LOGI(TAG, "Elapsed: %lld us, Sampling rate: %.2f Hz", s_time_sum, sampling_rate);
 
     while(1)
     {
