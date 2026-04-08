@@ -1,22 +1,23 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.20)
 
-# ESP-IDF component support
-if(DEFINED ENV{IDF_PATH})
-    idf_component_register(
-        SRCS "src/ads131m0x.c"
-        INCLUDE_DIRS "include"
-        REQUIRES ""
-    )
-    return()
+if(IDF_VERSION_MAJOR)
+	idf_component_register(
+		SRCS
+			"src/ads131m0x.c"
+		INCLUDE_DIRS "include"
+	)
+elseif(ZEPHYR_BASE)
+	zephyr_library()
+	zephyr_library_sources(
+		src/ads131m0x.c
+	)
+	zephyr_include_directories(include)
+else()
+	add_library(ads131m0x STATIC
+		src/ads131m0x.c
+	)
+	target_include_directories(ads131m0x PUBLIC include)
+
+	enable_testing()
+	add_subdirectory(tests)
 endif()
-
-# Standard CMake build (works for Zephyr too)
-project(ads131m0x VERSION 1.0.0 LANGUAGES C)
-
-# Create static library
-add_library(ads131m0x STATIC
-    src/ads131m0x.c
-)
-
-# Set include directories
-target_include_directories(ads131m0x PUBLIC include)
