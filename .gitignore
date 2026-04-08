@@ -68,7 +68,6 @@ docs/xml/
 *.tag
 
 # Test outputs
-test_results/
 coverage/
 *.gcov
 *.gcda
