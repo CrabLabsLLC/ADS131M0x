@@ -390,4 +390,4 @@ extern "C" {
 }
 #endif
 
-#endif // ADS131M0X_REGISTERS_H
+#endif /* ADS131M0X_REGISTERS_H */

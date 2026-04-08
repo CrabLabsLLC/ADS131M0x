@@ -175,9 +175,9 @@ void app_main(void)
     {
         .power_mode         = ADS131M0X_POWER_HIGH_RES,
         .oversampling_ratio = ADS131M0X_OSR_4096,
-        .turbo_mode         = true,
+        .is_turbo_mode_enabled = true,
         .word_length        = ADS131M0X_WLENGTH_24_BIT,
-        .spi_timeout_enabled = true,
+        .is_spi_timeout_enabled = true,
     };
     err = ads131m0xConfigure(&s_adc, &config);
     if (err != ADS131M0X_ERROR_OK)
@@ -194,7 +194,7 @@ void app_main(void)
         .gain               = ADS131M0X_GAIN_128,
         .mux                = ADS131M0X_MUX_NORMAL,
         .phase_delay_cycles = 0,
-        .dc_block_disabled  = false,
+        .is_dc_block_disabled  = false,
         .offset_cal         = 0,
         .gain_cal           = 0x800000,
     };

@@ -13,52 +13,52 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
-// ── ADS131M04 ──────────────────────────────────────────────────────────────
-#define ADS131M0X_CHANNEL_COUNT 4U // Adjust for your device (4, 6, or 8)
+/* Number of ADC channels — adjust for your device variant (4, 6, or 8). */
+#define ADS131M0X_CHANNEL_COUNT 4U
 
 // ── Error codes ──────────────────────────────────────────────────────────────
 typedef enum
 {
-	ADS131M0X_ERROR_OK,
-	ADS131M0X_ERROR_NULL_PARAM,
-	ADS131M0X_ERROR_NOT_INITIALIZED,
-	ADS131M0X_ERROR_SPI,
-	ADS131M0X_ERROR_INVALID_CHANNEL,
-	ADS131M0X_ERROR_INVALID_PARAM,
-	ADS131M0X_ERROR_CRC,
-	ADS131M0X_ERROR_LOCKED,
-	ADS131M0X_ERROR_ID_MISMATCH,
+	ADS131M0X_ERROR_OK             = 0,   ///< Success
+	ADS131M0X_ERROR_NULL_PARAM     = -1,  ///< NULL pointer argument
+	ADS131M0X_ERROR_NOT_INITIALIZED = -2, ///< Driver not initialized; call ads131m0xInit() first
+	ADS131M0X_ERROR_SPI            = -3,  ///< SPI transaction failed or unexpected response
+	ADS131M0X_ERROR_INVALID_CHANNEL = -4, ///< Channel index out of range
+	ADS131M0X_ERROR_INVALID_PARAM  = -5,  ///< Out-of-range argument
+	ADS131M0X_ERROR_CRC            = -6,  ///< CRC mismatch on received frame
+	ADS131M0X_ERROR_LOCKED         = -7,  ///< SPI interface is locked; call ads131m0xUnlock() first
+	ADS131M0X_ERROR_ID_MISMATCH    = -8,  ///< Chip ID does not match expected pattern
 } ADS131M0XError;
 
 // ── Opcode commands ──────────────────────────────────────────────────────────
 typedef enum
 {
-	ADS131M0X_CMD_NULL    = 0x0000U,
-	ADS131M0X_CMD_RESET   = 0x0011U,
-	ADS131M0X_CMD_STANDBY = 0x0022U,
-	ADS131M0X_CMD_WAKEUP  = 0x0033U,
-	ADS131M0X_CMD_LOCK    = 0x0555U,
-	ADS131M0X_CMD_UNLOCK  = 0x0655U,
-	ADS131M0X_CMD_RREG    = 0xA000U,
-	ADS131M0X_CMD_WREG    = 0x6000U,
+	ADS131M0X_CMD_NULL    = 0x0000U,  ///< No operation — clocks out the next response frame
+	ADS131M0X_CMD_RESET   = 0x0011U,  ///< Software reset
+	ADS131M0X_CMD_STANDBY = 0x0022U,  ///< Enter standby mode
+	ADS131M0X_CMD_WAKEUP  = 0x0033U,  ///< Exit standby mode
+	ADS131M0X_CMD_LOCK    = 0x0555U,  ///< Lock SPI (only NULL, RREG, UNLOCK accepted)
+	ADS131M0X_CMD_UNLOCK  = 0x0655U,  ///< Unlock SPI
+	ADS131M0X_CMD_RREG    = 0xA000U,  ///< Read register(s) — OR in address and count
+	ADS131M0X_CMD_WREG    = 0x6000U,  ///< Write register(s) — OR in address and count
 } ADS131M0XCommand;
 
 // ── Command expected responses ────────────────────────────────────────────────
 typedef enum
 {
-	ADS131M0X_RESP_RESET_OK   = (0xFF00U | (0x20U | ADS131M0X_CHANNEL_COUNT)),
-	ADS131M0X_RESP_STANDBY    = 0x0022U,
-	ADS131M0X_RESP_WAKEUP     = 0x0033U,
-	ADS131M0X_RESP_LOCK       = 0x0555U,
-	ADS131M0X_RESP_UNLOCK     = 0x0655U,
+	ADS131M0X_RESP_RESET_OK   = (0xFF00U | (0x20U | ADS131M0X_CHANNEL_COUNT)),  ///< Power-on / reset acknowledgment
+	ADS131M0X_RESP_STANDBY    = 0x0022U,  ///< STANDBY acknowledgment
+	ADS131M0X_RESP_WAKEUP     = 0x0033U,  ///< WAKEUP acknowledgment
+	ADS131M0X_RESP_LOCK       = 0x0555U,  ///< LOCK acknowledgment
+	ADS131M0X_RESP_UNLOCK     = 0x0655U,  ///< UNLOCK acknowledgment
 } ADS131M0XResponse;
 
 // ── Power modes (CLOCK.PWR) ───────────────────────────────────────────────────
 typedef enum
 {
-	ADS131M0X_POWER_VERY_LOW = 0x00U,
-	ADS131M0X_POWER_LOW      = 0x01U,
-	ADS131M0X_POWER_HIGH_RES = 0x02U,
+	ADS131M0X_POWER_VERY_LOW = 0x00U,  ///< Very-low-power mode
+	ADS131M0X_POWER_LOW      = 0x01U,  ///< Low-power mode
+	ADS131M0X_POWER_HIGH_RES = 0x02U,  ///< High-resolution mode
 } ADS131M0XPowerMode;
 
 // ── Oversampling ratio (CLOCK.OSR) ───────────────────────────────────────────
@@ -67,7 +67,7 @@ typedef enum
 	ADS131M0X_OSR_128   = 0x00U,
 	ADS131M0X_OSR_256   = 0x01U,
 	ADS131M0X_OSR_512   = 0x02U,
-	ADS131M0X_OSR_1024  = 0x03U, ///< Default
+	ADS131M0X_OSR_1024  = 0x03U,  ///< Default
 	ADS131M0X_OSR_2048  = 0x04U,
 	ADS131M0X_OSR_4096  = 0x05U,
 	ADS131M0X_OSR_8192  = 0x06U,
@@ -78,15 +78,15 @@ typedef enum
 typedef enum
 {
 	ADS131M0X_WLENGTH_16_BIT      = 0x00U,
-	ADS131M0X_WLENGTH_24_BIT      = 0x01U, ///< Default
-	ADS131M0X_WLENGTH_32_BIT_ZERO = 0x02U,
-	ADS131M0X_WLENGTH_32_BIT_SIGN = 0x03U,
+	ADS131M0X_WLENGTH_24_BIT      = 0x01U,  ///< Default
+	ADS131M0X_WLENGTH_32_BIT_ZERO = 0x02U,  ///< 32-bit, zero-padded LSB
+	ADS131M0X_WLENGTH_32_BIT_SIGN = 0x03U,  ///< 32-bit, sign-extended LSB
 } ADS131M0XWordLength;
 
 // ── PGA gain (GAIN1/GAIN2.PGAGAINn) ─────────────────────────────────────────
 typedef enum
 {
-	ADS131M0X_GAIN_1   = 0x00U, ///< Default
+	ADS131M0X_GAIN_1   = 0x00U,  ///< 1× gain (default)
 	ADS131M0X_GAIN_2   = 0x01U,
 	ADS131M0X_GAIN_4   = 0x02U,
 	ADS131M0X_GAIN_8   = 0x03U,
@@ -99,31 +99,31 @@ typedef enum
 // ── Channel input MUX (CHn_CFG.MUXn) ────────────────────────────────────────
 typedef enum
 {
-	ADS131M0X_MUX_NORMAL       = 0x00U, ///< Default
-	ADS131M0X_MUX_SHORTED      = 0x01U,
-	ADS131M0X_MUX_POSITIVE_DCM = 0x02U,
-	ADS131M0X_MUX_NEGATIVE_DCM = 0x03U,
+	ADS131M0X_MUX_NORMAL       = 0x00U,  ///< Normal differential input (default)
+	ADS131M0X_MUX_SHORTED      = 0x01U,  ///< Inputs shorted (offset calibration)
+	ADS131M0X_MUX_POSITIVE_DCM = 0x02U,  ///< Positive DC measurement
+	ADS131M0X_MUX_NEGATIVE_DCM = 0x03U,  ///< Negative DC measurement
 } ADS131M0XMux;
 
 // ── Global DC-block high-pass filter coefficient (THRSHLD_LSB.DCBLOCK) ───────
 typedef enum
 {
-	ADS131M0X_DCBLOCK_DISABLED = 0x00U, ///< Default
-	ADS131M0X_DCBLOCK_1_4      = 0x01U, ///< HPF a f_sampling/4
-	ADS131M0X_DCBLOCK_1_8      = 0x02U, ///< HPF a f_sampling/8
-	ADS131M0X_DCBLOCK_1_16     = 0x03U, ///< HPF a f_sampling/16
-	ADS131M0X_DCBLOCK_1_32     = 0x04U, ///< HPF a f_sampling/32
-	ADS131M0X_DCBLOCK_1_64     = 0x05U, ///< HPF a f_sampling/64
-	ADS131M0X_DCBLOCK_1_128    = 0x06U, ///< HPF a f_sampling/128
-	ADS131M0X_DCBLOCK_1_256    = 0x07U, ///< HPF a f_sampling/256
-	ADS131M0X_DCBLOCK_1_512    = 0x08U, ///< HPF a f_sampling/512
-	ADS131M0X_DCBLOCK_1_1024   = 0x09U, ///< HPF a f_sampling/1024
-	ADS131M0X_DCBLOCK_1_2048   = 0x0AU, ///< HPF a f_sampling/2048
-	ADS131M0X_DCBLOCK_1_4096   = 0x0BU, ///< HPF a f_sampling/4096
-	ADS131M0X_DCBLOCK_1_8192   = 0x0CU, ///< HPF a f_sampling/8192
-	ADS131M0X_DCBLOCK_1_16384  = 0x0DU, ///< HPF a f_sampling/16384
-	ADS131M0X_DCBLOCK_1_32768  = 0x0EU, ///< HPF a f_sampling/32768
-	ADS131M0X_DCBLOCK_1_65536  = 0x0FU, ///< HPF a f_sampling/65536
+	ADS131M0X_DCBLOCK_DISABLED = 0x00U,  ///< DC-block filter disabled (default)
+	ADS131M0X_DCBLOCK_1_4      = 0x01U,  ///< HPF at f_sampling/4
+	ADS131M0X_DCBLOCK_1_8      = 0x02U,  ///< HPF at f_sampling/8
+	ADS131M0X_DCBLOCK_1_16     = 0x03U,  ///< HPF at f_sampling/16
+	ADS131M0X_DCBLOCK_1_32     = 0x04U,  ///< HPF at f_sampling/32
+	ADS131M0X_DCBLOCK_1_64     = 0x05U,  ///< HPF at f_sampling/64
+	ADS131M0X_DCBLOCK_1_128    = 0x06U,  ///< HPF at f_sampling/128
+	ADS131M0X_DCBLOCK_1_256    = 0x07U,  ///< HPF at f_sampling/256
+	ADS131M0X_DCBLOCK_1_512    = 0x08U,  ///< HPF at f_sampling/512
+	ADS131M0X_DCBLOCK_1_1024   = 0x09U,  ///< HPF at f_sampling/1024
+	ADS131M0X_DCBLOCK_1_2048   = 0x0AU,  ///< HPF at f_sampling/2048
+	ADS131M0X_DCBLOCK_1_4096   = 0x0BU,  ///< HPF at f_sampling/4096
+	ADS131M0X_DCBLOCK_1_8192   = 0x0CU,  ///< HPF at f_sampling/8192
+	ADS131M0X_DCBLOCK_1_16384  = 0x0DU,  ///< HPF at f_sampling/16384
+	ADS131M0X_DCBLOCK_1_32768  = 0x0EU,  ///< HPF at f_sampling/32768
+	ADS131M0X_DCBLOCK_1_65536  = 0x0FU,  ///< HPF at f_sampling/65536
 } ADS131M0XDCBlock;
 
 // ── Global-chop delay (CFG.GC_DLY) ──────────────────────────────────────────
@@ -150,23 +150,23 @@ typedef enum
 // ── CRC polynomial (MODE.CRC_TYPE) ───────────────────────────────────────────
 typedef enum
 {
-	ADS131M0X_CRC_POLYNOMIAL_CCITT = 0x00U, ///< x^16 + x^12 + x^5 + 1 = 0x1021
-	ADS131M0X_CRC_POLYNOMIAL_ANSI  = 0x01U, ///< x^16 + x^15 + x^2 + 1 = 0x8005
+	ADS131M0X_CRC_POLYNOMIAL_CCITT = 0x00U,  ///< x^16 + x^12 + x^5 + 1 = 0x1021
+	ADS131M0X_CRC_POLYNOMIAL_ANSI  = 0x01U,  ///< x^16 + x^15 + x^2 + 1 = 0x8005
 } ADS131M0XCRCPolynomial;
 
 // ── DRDY pin signal source (MODE.DRDY_SEL) ───────────────────────────────────
 typedef enum
 {
-	ADS131M0X_DRDY_SEL_MOST_LAGGING = 0x00U, ///< Default
-	ADS131M0X_DRDY_SEL_ALL_OR       = 0x01U,
-	ADS131M0X_DRDY_SEL_MOST_LEADING = 0x02U,
+	ADS131M0X_DRDY_SEL_MOST_LAGGING = 0x00U,  ///< Most-lagging channel drives DRDY (default)
+	ADS131M0X_DRDY_SEL_ALL_OR       = 0x01U,  ///< Logic-OR of all channel DRDY signals
+	ADS131M0X_DRDY_SEL_MOST_LEADING = 0x02U,  ///< Most-leading channel drives DRDY
 } ADS131M0XDataReadySelect;
 
 // ── DRDY pin output format (MODE.DRDY_FMT) ───────────────────────────────────
 typedef enum
 {
-	ADS131M0X_DRDY_FMT_LOGIC_LOW = 0x00U, ///< default
-	ADS131M0X_DRDY_FMT_PULSE     = 0x01U,
+	ADS131M0X_DRDY_FMT_LOGIC_LOW = 0x00U,  ///< Logic-low until frame is read (default)
+	ADS131M0X_DRDY_FMT_PULSE     = 0x01U,  ///< Single-clock pulse
 } ADS131M0XDataReadyFormat;
 
 // ── Current-detect consecutive over-threshold sample count (CFG.CD_NUM) ──────
@@ -199,82 +199,58 @@ typedef enum
 // ── Hardware abstraction layer ────────────────────────────────────────────────
 typedef struct
 {
-	/**
-	 * @brief Read data from the SPI bus.
-	 * @param data Pointer to the buffer to store the read data.
-	 * @param length_bytes Number of bytes to read.
-	 * @return 0 on success, 1 on failure.
-	 */
-	int  (*spiRead)(void* const data, const uint8_t length_bytes);
-	/**
-	 * @brief Write data to the SPI bus.
-	 * @param data Pointer to the data to write.
-	 * @param length_bytes Number of bytes to write.
-	 * @return 0 on success, 1 on failure.
-	 */
-	int  (*spiWrite)(const void* const data, const uint8_t length_bytes);
-	/**
-	 * @brief Get the state of the DRDY pin.
-	 * @return true if DRDY is low, false otherwise.
-	 */
-	bool (*drdyGet)(void);
-	/**
-	 * @brief Set the state of the SYNC/RESET pin.
-	 * @param state The state to set the pin to.
-	 */
-	void (*syncResetSet)(bool state);
-	/**
-	 * @brief Delay for a specified number of milliseconds.
-	 * @param delay_ms Number of milliseconds to delay.
-	 */
-	void (*delayMs)(uint32_t delay_ms);
+	int  (*spiRead)(void* const data, const uint8_t length_bytes);         ///< Read @p length_bytes bytes from DOUT; returns 0 on success
+	int  (*spiWrite)(const void* const data, const uint8_t length_bytes);  ///< Write @p length_bytes bytes to DIN; returns 0 on success
+	bool (*drdyGet)(void);                                                  ///< Return true when DRDY is asserted (pin low)
+	void (*syncResetSet)(const bool state);                                 ///< Drive the SYNC/RESET pin; false = assert reset
+	void (*delayMs)(const uint32_t delay_ms);                              ///< Block for @p delay_ms milliseconds
 } ADS131M0XHAL;
 
 // ── Global configuration ──────────────────────────────────────────────────────
 typedef struct
 {
-	// CLOCK register
-	ADS131M0XPowerMode power_mode;
-	ADS131M0XOSR oversampling_ratio;
-	bool turbo_mode;
+	/* CLOCK register */
+	ADS131M0XPowerMode power_mode;          ///< Modulator power mode
+	ADS131M0XOSR oversampling_ratio;        ///< Oversampling ratio
+	bool is_turbo_mode_enabled;             ///< Enable turbo mode (doubles max data rate)
 
-	// MODE register — SPI framing
-	ADS131M0XWordLength word_length;
-	bool spi_timeout_enabled;
+	/* MODE register — SPI framing */
+	ADS131M0XWordLength word_length;        ///< SPI word width
+	bool is_spi_timeout_enabled;            ///< Enable SPI timeout auto-reset
 
 	struct
 	{
-		bool output_enabled;
-		bool input_enabled;
-		ADS131M0XCRCPolynomial polynomial;
+		bool is_output_enabled;             ///< Append CRC word to output frames
+		bool is_input_enabled;              ///< Validate CRC on incoming DIN frames
+		ADS131M0XCRCPolynomial polynomial;  ///< CRC polynomial selection
 	} crc;
 
-	// MODE register — DRDY output pin
+	/* MODE register — DRDY output pin */
 	struct
 	{
-		ADS131M0XDataReadySelect selection;
-		bool hiz;
-		ADS131M0XDataReadyFormat format;
+		ADS131M0XDataReadySelect selection;  ///< Channel that drives DRDY
+		bool is_hiz_enabled;                 ///< Hi-Z DRDY when CS is de-asserted
+		ADS131M0XDataReadyFormat format;     ///< Logic-low or pulse output format
 	} data_ready;
 
-	// CFG register — global-chop
+	/* CFG register — global-chop */
 	struct
 	{
-		bool is_enabled;
-		ADS131M0XGlobalChopDelay delay;
+		bool is_enabled;              ///< Enable global-chop mode
+		ADS131M0XGlobalChopDelay delay;  ///< Modulator clocks between polarity swaps
 	} global_chop;
 
-	// THRSHLD_LSB register — DC-block
-	ADS131M0XDCBlock dc_block;
+	/* THRSHLD_LSB register — DC-block */
+	ADS131M0XDCBlock dc_block;  ///< Global DC-block HPF corner frequency
 
-	// CFG + THRSHLD registers — current-detect fault
+	/* CFG + THRSHLD registers — current-detect fault */
 	struct
 	{
-		bool is_enabled;
-		bool all_channels;
-		ADS131M0XCurrentDetectNum num;
-		ADS131M0XCurrentDetectLen len;
-		uint32_t threshold;
+		bool is_enabled;                    ///< Enable current-detect monitoring
+		bool is_all_channels_enabled;       ///< Apply threshold across all channels
+		ADS131M0XCurrentDetectNum num;      ///< Consecutive over-threshold samples required
+		ADS131M0XCurrentDetectLen len;      ///< Detection window length
+		uint32_t threshold;                 ///< 24-bit detection threshold value
 	} current_detect;
 
 } ADS131M0XConfig;
@@ -282,29 +258,29 @@ typedef struct
 // ── Channel configuration ─────────────────────────────────────────────────────
 typedef struct
 {
-	bool is_enabled;
-	ADS131M0XGain gain;
-	ADS131M0XMux mux;
-	int16_t phase_delay_cycles;
-	bool dc_block_disabled;
-	int32_t offset_cal;
-	uint32_t gain_cal;
+	bool is_enabled;              ///< Enable this channel's clock in CLOCK register
+	ADS131M0XGain gain;           ///< PGA gain setting
+	ADS131M0XMux mux;             ///< Input multiplexer selection
+	int16_t phase_delay_cycles;   ///< Two's-complement phase delay in modulator clock cycles
+	bool is_dc_block_disabled;    ///< Disable the per-channel DC-block filter override
+	int32_t offset_cal;           ///< 24-bit offset calibration word
+	uint32_t gain_cal;            ///< 24-bit gain calibration word
 } ADS131M0XChannelConfig;
 
 // ── Device handle ─────────────────────────────────────────────────────────────
 typedef struct
 {
-	ADS131M0XHAL hal;
+	ADS131M0XHAL hal;  ///< Copy of the HAL function pointers provided at init
 
-	bool is_initialized;
-	bool is_locked;
+	bool is_initialized;  ///< True after a successful ads131m0xInit()
+	bool is_locked;       ///< True when the SPI interface is locked
 
-	ADS131M0XWordLength word_length;
+	ADS131M0XWordLength word_length;  ///< Active SPI word length
 
 	struct
 	{
-		bool is_enabled;
-		ADS131M0XCRCPolynomial type;
+		bool is_enabled;            ///< True when CRC output is active
+		ADS131M0XCRCPolynomial type;  ///< Active CRC polynomial
 	} crc;
 
 } ADS131M0X;
@@ -312,14 +288,14 @@ typedef struct
 // ── Conversion data ───────────────────────────────────────────────────────────
 typedef struct
 {
-	uint16_t status;
-	int32_t  channel_data[ADS131M0X_CHANNEL_COUNT];
-	uint16_t crc;
-	bool     crc_valid;
+	uint16_t status;                              ///< STATUS word from the response frame
+	int32_t  channel_data[ADS131M0X_CHANNEL_COUNT];  ///< Sign-extended 24-bit channel codes
+	uint16_t crc;                                 ///< CRC word received from the device
+	bool     is_crc_valid;                        ///< True if CRC check passed (or CRC disabled)
 } ADS131M0XData;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // ADS131M0X_TYPES_H
+#endif /* ADS131M0X_TYPES_H */

@@ -10,19 +10,19 @@
 #include "ads131m0x.h"
 
 /* Maximum bytes per SPI frame: (channel count + status word + CRC word) * maximum bytes per word (32-bit -> 4 bytes) */
-#define ADS131M0X_FRAME_SIZE_MAX_BYTES ((ADS131M0X_CHANNEL_COUNT + 2U) * 4U)
+#define ADS131M0X_FRAME_SIZE_MAX_BYTES      ((ADS131M0X_CHANNEL_COUNT + 2U) * 4U)
 #define ADS131M0X_CRC_POLYNOMIAL_HEX_CCITT 0x1021U
 #define ADS131M0X_CRC_POLYNOMIAL_HEX_ANSI  0x8005U
 
-// ── Static Forward Declarations ─────────────────────────────────────────────────
+/* ── Static Forward Declarations ─────────────────────────────────────────────── */
 static uint8_t bytesPerWord(ADS131M0XWordLength word_length);
 static void packWord(uint8_t* buf, uint16_t word, ADS131M0XWordLength word_length);
 static int32_t signExtend(const uint8_t* bytes, ADS131M0XWordLength word_length);
-static uint16_t calculateCRC(uint16_t crc_polynomial, const uint8_t* data, uint8_t length_bytes, uint16_t initialValue);
+static uint16_t calculateCRC(uint16_t crc_polynomial, const uint8_t* data, uint8_t length_bytes, uint16_t initial_value);
 static ADS131M0XError sendCommand(const ADS131M0X* const dev, ADS131M0XCommand command, uint16_t* const response);
 static ADS131M0XError checkCRC(const ADS131M0X* const dev, const uint8_t* buf);
 
-// ── Initialization / Lifecycle ──────────────────────────────────────────────────
+/* ── Initialization / Lifecycle ────────────────────────────────────────────────── */
 ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal)
 {
 	if (dev == NULL || hal == NULL)
@@ -66,7 +66,7 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
 		/* Power supply settling delay before first SPI command */
 		dev->hal.delayMs(50);
 
-		/* Send ads131m0xReset command if no pin provided */
+		/* Send reset command when no SYNC/RESET pin is wired */
 		ADS131M0XError err = ads131m0xReset(dev);
 		if (err != ADS131M0X_ERROR_OK)
 			return err;
@@ -74,7 +74,7 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
 
 	dev->is_initialized = true;
 
-	/* ── Enter Standby Mode ─────────────────────────────────────────────── */
+	/* Enter standby to reduce power while idle */
 	ADS131M0XError err = ads131m0xStandby(dev);
 	if (err != ADS131M0X_ERROR_OK)
 		return err;
@@ -97,9 +97,6 @@ ADS131M0XError ads131m0xReset(ADS131M0X* const dev)
 {
 	if (dev == NULL)
 		return ADS131M0X_ERROR_NULL_PARAM;
-
-	// if (!dev->is_initialized)
-	// 	return ADS131M0X_ERROR_NOT_INITIALIZED;
 
 	if (dev->is_locked)
 		return ADS131M0X_ERROR_LOCKED;
@@ -152,10 +149,11 @@ ADS131M0XError ads131m0xReadChipId(const ADS131M0X* const dev, uint16_t* const i
 
 int64_t ads131m0xConvertToMicrovolts(int32_t raw_code, ADS131M0XGain gain)
 {
-	// voltage_uv = raw * ADS131M0X_REFERENCE_VOLTAGE_UV / (gain_multiplier * 2^23)
+	/* voltage_uv = raw * ADS131M0X_REFERENCE_VOLTAGE_UV / (gain_multiplier * 2^23)
+	 * Symmetric round-half-away-from-zero avoids bias at mid-scale. */
 	const int64_t gain_multiplier = 1LL << (uint32_t)gain;
 	const int64_t numerator = (int64_t)raw_code * ADS131M0X_REFERENCE_VOLTAGE_UV;
-	const int64_t denominator = gain_multiplier * ADS131M0X_23_BITS;
+	const int64_t denominator = gain_multiplier * ADS131M0X_FULL_SCALE_CODES;
 	return (numerator >= 0)
 		? (numerator + denominator / 2) / denominator
 		: (numerator - denominator / 2) / denominator;
@@ -176,21 +174,21 @@ ADS131M0XError ads131m0xConfigure(ADS131M0X* const dev, const ADS131M0XConfig* c
 
 	/* Pack MODE register */
 	uint16_t mode_val = 0;
-	mode_val |= ((uint16_t)config->crc.output_enabled << ADS131M0X_MODE_REG_CRC_EN_SHIFT) & ADS131M0X_MODE_REG_CRC_EN_MASK;
-	mode_val |= ((uint16_t)config->crc.input_enabled << ADS131M0X_MODE_RX_CRC_EN_SHIFT) & ADS131M0X_MODE_RX_CRC_EN_MASK;
-	mode_val |= ((uint16_t)config->crc.polynomial << ADS131M0X_MODE_CRC_TYPE_SHIFT) & ADS131M0X_MODE_CRC_TYPE_MASK;
-	mode_val |= ((uint16_t)config->word_length << ADS131M0X_MODE_WLENGTH_SHIFT) & ADS131M0X_MODE_WLENGTH_MASK;
-	mode_val |= ((uint16_t)config->spi_timeout_enabled << ADS131M0X_MODE_TIMEOUT_SHIFT) & ADS131M0X_MODE_TIMEOUT_MASK;
-	mode_val |= ((uint16_t)config->data_ready.selection << ADS131M0X_MODE_DRDY_SEL_SHIFT) & ADS131M0X_MODE_DRDY_SEL_MASK;
-	mode_val |= ((uint16_t)config->data_ready.hiz << ADS131M0X_MODE_DRDY_HIZ_SHIFT) & ADS131M0X_MODE_DRDY_HIZ_MASK;
-	mode_val |= ((uint16_t)config->data_ready.format << ADS131M0X_MODE_DRDY_FMT_SHIFT) & ADS131M0X_MODE_DRDY_FMT_MASK;
+	mode_val |= ((uint16_t)config->crc.is_output_enabled    << ADS131M0X_MODE_REG_CRC_EN_SHIFT) & ADS131M0X_MODE_REG_CRC_EN_MASK;
+	mode_val |= ((uint16_t)config->crc.is_input_enabled     << ADS131M0X_MODE_RX_CRC_EN_SHIFT)  & ADS131M0X_MODE_RX_CRC_EN_MASK;
+	mode_val |= ((uint16_t)config->crc.polynomial           << ADS131M0X_MODE_CRC_TYPE_SHIFT)    & ADS131M0X_MODE_CRC_TYPE_MASK;
+	mode_val |= ((uint16_t)config->word_length              << ADS131M0X_MODE_WLENGTH_SHIFT)     & ADS131M0X_MODE_WLENGTH_MASK;
+	mode_val |= ((uint16_t)config->is_spi_timeout_enabled   << ADS131M0X_MODE_TIMEOUT_SHIFT)     & ADS131M0X_MODE_TIMEOUT_MASK;
+	mode_val |= ((uint16_t)config->data_ready.selection     << ADS131M0X_MODE_DRDY_SEL_SHIFT)    & ADS131M0X_MODE_DRDY_SEL_MASK;
+	mode_val |= ((uint16_t)config->data_ready.is_hiz_enabled << ADS131M0X_MODE_DRDY_HIZ_SHIFT)  & ADS131M0X_MODE_DRDY_HIZ_MASK;
+	mode_val |= ((uint16_t)config->data_ready.format        << ADS131M0X_MODE_DRDY_FMT_SHIFT)    & ADS131M0X_MODE_DRDY_FMT_MASK;
 
 	/* Pack CLOCK register */
 	uint16_t clock_val = 0;
 	clock_val |= ((1U << ADS131M0X_CHANNEL_COUNT) - 1U) << 8U;
-	clock_val |= ((uint16_t)config->turbo_mode << ADS131M0X_CLOCK_TBM_SHIFT) & ADS131M0X_CLOCK_TBM_MASK;
-	clock_val |= ((uint16_t)config->oversampling_ratio << ADS131M0X_CLOCK_OSR_SHIFT) & ADS131M0X_CLOCK_OSR_MASK;
-	clock_val |= ((uint16_t)config->power_mode << ADS131M0X_CLOCK_PWR_SHIFT) & ADS131M0X_CLOCK_PWR_MASK;
+	clock_val |= ((uint16_t)config->is_turbo_mode_enabled << ADS131M0X_CLOCK_TBM_SHIFT) & ADS131M0X_CLOCK_TBM_MASK;
+	clock_val |= ((uint16_t)config->oversampling_ratio    << ADS131M0X_CLOCK_OSR_SHIFT) & ADS131M0X_CLOCK_OSR_MASK;
+	clock_val |= ((uint16_t)config->power_mode            << ADS131M0X_CLOCK_PWR_SHIFT) & ADS131M0X_CLOCK_PWR_MASK;
 
 	/* Write MODE + CLOCK as burst */
 	uint16_t mode_clock[2] = { mode_val, clock_val };
@@ -198,19 +196,19 @@ ADS131M0XError ads131m0xConfigure(ADS131M0X* const dev, const ADS131M0XConfig* c
 	if (err != ADS131M0X_ERROR_OK)
 		return err;
 
-	/* Update device state */
+	/* Update device state to reflect new word length and CRC settings */
 	dev->word_length = config->word_length;
-	dev->crc.is_enabled = config->crc.output_enabled;
+	dev->crc.is_enabled = config->crc.is_output_enabled;
 	dev->crc.type = config->crc.polynomial;
 
 	/* Pack CFG register */
 	uint16_t cfg_val = 0;
-	cfg_val |= ((uint16_t)config->global_chop.delay << ADS131M0X_CFG_GC_DLY_SHIFT) & ADS131M0X_CFG_GC_DLY_MASK;
-	cfg_val |= ((uint16_t)config->global_chop.is_enabled << ADS131M0X_CFG_GC_EN_SHIFT) & ADS131M0X_CFG_GC_EN_MASK;
-	cfg_val |= ((uint16_t)config->current_detect.all_channels << ADS131M0X_CFG_CD_ALLCH_SHIFT) & ADS131M0X_CFG_CD_ALLCH_MASK;
-	cfg_val |= ((uint16_t)config->current_detect.num << ADS131M0X_CFG_CD_NUM_SHIFT) & ADS131M0X_CFG_CD_NUM_MASK;
-	cfg_val |= ((uint16_t)config->current_detect.len << ADS131M0X_CFG_CD_LEN_SHIFT) & ADS131M0X_CFG_CD_LEN_MASK;
-	cfg_val |= ((uint16_t)config->current_detect.is_enabled << ADS131M0X_CFG_CD_EN_SHIFT) & ADS131M0X_CFG_CD_EN_MASK;
+	cfg_val |= ((uint16_t)config->global_chop.delay              << ADS131M0X_CFG_GC_DLY_SHIFT)   & ADS131M0X_CFG_GC_DLY_MASK;
+	cfg_val |= ((uint16_t)config->global_chop.is_enabled         << ADS131M0X_CFG_GC_EN_SHIFT)    & ADS131M0X_CFG_GC_EN_MASK;
+	cfg_val |= ((uint16_t)config->current_detect.is_all_channels_enabled << ADS131M0X_CFG_CD_ALLCH_SHIFT) & ADS131M0X_CFG_CD_ALLCH_MASK;
+	cfg_val |= ((uint16_t)config->current_detect.num             << ADS131M0X_CFG_CD_NUM_SHIFT)   & ADS131M0X_CFG_CD_NUM_MASK;
+	cfg_val |= ((uint16_t)config->current_detect.len             << ADS131M0X_CFG_CD_LEN_SHIFT)   & ADS131M0X_CFG_CD_LEN_MASK;
+	cfg_val |= ((uint16_t)config->current_detect.is_enabled      << ADS131M0X_CFG_CD_EN_SHIFT)    & ADS131M0X_CFG_CD_EN_MASK;
 
 	/* Write CFG register */
 	err = ads131m0xWriteRegister(dev, ADS131M0X_CFG_ADDRESS, cfg_val);
@@ -282,9 +280,9 @@ ADS131M0XError ads131m0xConfigureChannel(ADS131M0X* const dev, uint8_t channel, 
 
 	/* Pack CHn_CFG register */
 	uint16_t chn_cfg = 0;
-	chn_cfg |= ((uint16_t)config->phase_delay_cycles << ADS131M0X_CHn_CFG_PHASE_SHIFT) & ADS131M0X_CHn_CFG_PHASE_MASK;
-	chn_cfg |= ((uint16_t)config->dc_block_disabled << ADS131M0X_CHn_CFG_DCBLK_DIS_SHIFT) & ADS131M0X_CHn_CFG_DCBLK_DIS_MASK;
-	chn_cfg |= ((uint16_t)config->mux << ADS131M0X_CHn_CFG_MUX_SHIFT) & ADS131M0X_CHn_CFG_MUX_MASK;
+	chn_cfg |= ((uint16_t)config->phase_delay_cycles  << ADS131M0X_CHn_CFG_PHASE_SHIFT)    & ADS131M0X_CHn_CFG_PHASE_MASK;
+	chn_cfg |= ((uint16_t)config->is_dc_block_disabled << ADS131M0X_CHn_CFG_DCBLK_DIS_SHIFT) & ADS131M0X_CHn_CFG_DCBLK_DIS_MASK;
+	chn_cfg |= ((uint16_t)config->mux                 << ADS131M0X_CHn_CFG_MUX_SHIFT)      & ADS131M0X_CHn_CFG_MUX_MASK;
 
 	/* Write CHn_CFG register */
 	err = ads131m0xWriteRegister(dev, base, chn_cfg);
@@ -299,7 +297,7 @@ ADS131M0XError ads131m0xConfigureChannel(ADS131M0X* const dev, uint8_t channel, 
 	uint16_t gcal_msb = (uint16_t)((config->gain_cal >> 8) & 0xFFFF);
 	uint16_t gcal_lsb = (uint16_t)((config->gain_cal & 0xFF) << 8);
 
-	/* Write all 4 channel registers as burst */
+	/* Write all 4 calibration registers as burst */
 	uint16_t ch_regs[4] = { ocal_msb, ocal_lsb, gcal_msb, gcal_lsb };
 	err = ads131m0xWriteRegisters(dev, base + ADS131M0X_CH_OCAL_MSB_OFFSET, ch_regs, 4);
 	if (err != ADS131M0X_ERROR_OK)
@@ -320,7 +318,7 @@ ADS131M0XError ads131m0xReadData(const ADS131M0X* const dev, ADS131M0XData* cons
 	uint8_t rx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
 
 	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
-	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word; // Status + CRC + Channel words
+	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;  /* Status + CRC + channel words */
 	const uint8_t crc_offset = (1U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
 
 	/* Frame 1: send NULL command */
@@ -347,7 +345,7 @@ ADS131M0XError ads131m0xReadData(const ADS131M0X* const dev, ADS131M0XData* cons
 	ADS131M0XError crc_err = checkCRC(dev, rx_buf);
 	if (crc_err != ADS131M0X_ERROR_OK)
 		return crc_err;
-	data->crc_valid = dev->crc.is_enabled;
+	data->is_crc_valid = dev->crc.is_enabled;
 
 	/* Extract channel data from words 1..CHANNEL_COUNT */
 	for (uint8_t i = 0; i < ADS131M0X_CHANNEL_COUNT; i++)
@@ -486,7 +484,7 @@ ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t 
 		return ADS131M0X_ERROR_NULL_PARAM;
 
 	/* Limited to CHANNEL_COUNT by the fixed-size stack frame buffer.
-	 * Larger bursts require a larger buffer.*/
+	 * Larger bursts require a larger buffer. */
 	if (count > ADS131M0X_CHANNEL_COUNT || count == 0)
 		return ADS131M0X_ERROR_INVALID_PARAM;
 
@@ -616,20 +614,20 @@ const char* ads131m0xErrorToString(ADS131M0XError err)
 {
 	switch (err)
 	{
-		case ADS131M0X_ERROR_OK: return "OK";
-		case ADS131M0X_ERROR_NULL_PARAM: return "NULL_PARAM";
-		case ADS131M0X_ERROR_INVALID_PARAM: return "INVALID_PARAM";
+		case ADS131M0X_ERROR_OK:              return "OK";
+		case ADS131M0X_ERROR_NULL_PARAM:      return "NULL_PARAM";
+		case ADS131M0X_ERROR_INVALID_PARAM:   return "INVALID_PARAM";
 		case ADS131M0X_ERROR_INVALID_CHANNEL: return "INVALID_CHANNEL";
 		case ADS131M0X_ERROR_NOT_INITIALIZED: return "NOT_INITIALIZED";
-		case ADS131M0X_ERROR_LOCKED: return "LOCKED";
-		case ADS131M0X_ERROR_SPI: return "SPI";
-		case ADS131M0X_ERROR_CRC: return "CRC";
-		case ADS131M0X_ERROR_ID_MISMATCH: return "ID_MISMATCH";
-		default: return "ADS131M0X_ERROR_UNKNOWN";
+		case ADS131M0X_ERROR_LOCKED:          return "LOCKED";
+		case ADS131M0X_ERROR_SPI:             return "SPI";
+		case ADS131M0X_ERROR_CRC:             return "CRC";
+		case ADS131M0X_ERROR_ID_MISMATCH:     return "ID_MISMATCH";
+		default:                              return "UNKNOWN";
 	}
 }
 
-// ── Raw SPI Access ──────────────────────────────────────────────────────────────
+/* ── Raw SPI Access ─────────────────────────────────────────────────────────── */
 ADS131M0XError ads131m0xRead(const ADS131M0X* const dev, void* const value, const uint8_t count)
 {
 	if (dev == NULL || value == NULL)
@@ -652,7 +650,7 @@ ADS131M0XError ads131m0xWrite(const ADS131M0X* const dev, const void* const valu
 	return ADS131M0X_ERROR_OK;
 }
 
-// ── Static Helper Functions ────────────────────────────────────────────────
+/* ── Static Helper Functions ─────────────────────────────────────────────────── */
 static uint8_t bytesPerWord(ADS131M0XWordLength word_length)
 {
 	switch (word_length)
@@ -713,6 +711,7 @@ static int32_t signExtend(const uint8_t* bytes, ADS131M0XWordLength word_length)
 		}
 		case ADS131M0X_WLENGTH_32_BIT_ZERO:
 		{
+			/* 24-bit data zero-padded in byte[3]; ignore the padding byte */
 			uint32_t raw = ((uint32_t)bytes[0] << 24)
 						 | ((uint32_t)bytes[1] << 16)
 						 | ((uint32_t)bytes[2] << 8);
@@ -720,6 +719,7 @@ static int32_t signExtend(const uint8_t* bytes, ADS131M0XWordLength word_length)
 		}
 		case ADS131M0X_WLENGTH_32_BIT_SIGN:
 		{
+			/* 24-bit data sign-extended into byte[3] */
 			uint32_t raw = ((uint32_t)bytes[0] << 24)
 						 | ((uint32_t)bytes[1] << 16)
 						 | ((uint32_t)bytes[2] << 8)
@@ -731,9 +731,9 @@ static int32_t signExtend(const uint8_t* bytes, ADS131M0XWordLength word_length)
 	}
 }
 
-static uint16_t calculateCRC(uint16_t crc_polynomial, const uint8_t* data, uint8_t length_bytes, uint16_t initialValue)
+static uint16_t calculateCRC(uint16_t crc_polynomial, const uint8_t* data, uint8_t length_bytes, uint16_t initial_value)
 {
-	uint16_t crc = initialValue;
+	uint16_t crc = initial_value;
 
 	for (uint8_t i = 0; i < length_bytes; i++)
 	{
@@ -754,8 +754,8 @@ static uint16_t calculateCRC(uint16_t crc_polynomial, const uint8_t* data, uint8
 
 static ADS131M0XError sendCommand(const ADS131M0X* const dev, ADS131M0XCommand command, uint16_t* const response)
 {
-	uint8_t bytes_per_word = bytesPerWord(dev->word_length);
-	uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word; // Status + CRC + Channel words
+	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
+	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;  /* Status + CRC + channel words */
 
 	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
 	memset(tx_buf, 0, sizeof(tx_buf));
@@ -797,8 +797,8 @@ static ADS131M0XError checkCRC(const ADS131M0X* const dev, const uint8_t* buf)
 									? ADS131M0X_CRC_POLYNOMIAL_HEX_ANSI
 									: ADS131M0X_CRC_POLYNOMIAL_HEX_CCITT;
 
-	const uint16_t calculated_crc  = calculateCRC(crc_polynomial, buf, crc_offset, 0xFFFFU);
-	const uint16_t received_crc  = ((uint16_t)buf[crc_offset] << 8) | buf[crc_offset + 1U];
+	const uint16_t calculated_crc = calculateCRC(crc_polynomial, buf, crc_offset, 0xFFFFU);
+	const uint16_t received_crc   = ((uint16_t)buf[crc_offset] << 8) | buf[crc_offset + 1U];
 
 	if (calculated_crc != received_crc)
 		return ADS131M0X_ERROR_CRC;
