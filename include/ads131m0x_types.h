@@ -46,7 +46,7 @@ typedef enum
 // ── Command expected responses ────────────────────────────────────────────────
 typedef enum
 {
-	ADS131M0X_RESP_RESET_OK   = 0xFF24U,
+	ADS131M0X_RESP_RESET_OK   = (0xFF00U | (0x20U | ADS131M0X_CHANNEL_COUNT)),
 	ADS131M0X_RESP_STANDBY    = 0x0022U,
 	ADS131M0X_RESP_WAKEUP     = 0x0033U,
 	ADS131M0X_RESP_LOCK       = 0x0555U,
@@ -185,14 +185,14 @@ typedef enum
 // ── Current-detect cycle window length (CFG.CD_LEN) ─────────────────────────
 typedef enum
 {
-	ADS131M0X_CD_LEN_1   = 0x00U,
-	ADS131M0X_CD_LEN_2   = 0x01U,
-	ADS131M0X_CD_LEN_4   = 0x02U,
-	ADS131M0X_CD_LEN_8   = 0x03U,
-	ADS131M0X_CD_LEN_16  = 0x04U,
-	ADS131M0X_CD_LEN_32  = 0x05U,
-	ADS131M0X_CD_LEN_64  = 0x06U,
-	ADS131M0X_CD_LEN_128 = 0x07U,
+	ADS131M0X_CD_LEN_128  = 0x00U,
+	ADS131M0X_CD_LEN_256  = 0x01U,
+	ADS131M0X_CD_LEN_512  = 0x02U,
+	ADS131M0X_CD_LEN_768  = 0x03U,
+	ADS131M0X_CD_LEN_1280 = 0x04U,
+	ADS131M0X_CD_LEN_1792 = 0x05U,
+	ADS131M0X_CD_LEN_2560 = 0x06U,
+	ADS131M0X_CD_LEN_3584 = 0x07U,
 } ADS131M0XCurrentDetectLen;
 
 
@@ -274,7 +274,7 @@ typedef struct
 		bool all_channels;
 		ADS131M0XCurrentDetectNum num;
 		ADS131M0XCurrentDetectLen len;
-		int32_t threshold;
+		uint32_t threshold;
 	} current_detect;
 
 } ADS131M0XConfig;

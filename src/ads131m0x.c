@@ -63,6 +63,9 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
 	}
 	else
 	{
+		/* Power supply settling delay before first SPI command */
+		dev->hal.delayMs(50);
+
 		/* Send ads131m0xReset command if no pin provided */
 		ADS131M0XError err = ads131m0xReset(dev);
 		if (err != ADS131M0X_ERROR_OK)
@@ -150,8 +153,12 @@ ADS131M0XError ads131m0xReadChipId(const ADS131M0X* const dev, uint16_t* const i
 int64_t ads131m0xConvertToMicrovolts(int32_t raw_code, ADS131M0XGain gain)
 {
 	// voltage_uv = raw * ADS131M0X_REFERENCE_VOLTAGE_UV / (gain_multiplier * 2^23)
-	const uint32_t gain_multiplier = 1U << (uint32_t)gain;
-	return raw_code * ADS131M0X_REFERENCE_VOLTAGE_UV / (gain_multiplier * ADS131M0X_23_BITS);
+	const int64_t gain_multiplier = 1LL << (uint32_t)gain;
+	const int64_t numerator = (int64_t)raw_code * ADS131M0X_REFERENCE_VOLTAGE_UV;
+	const int64_t denominator = gain_multiplier * ADS131M0X_23_BITS;
+	return (numerator >= 0)
+		? (numerator + denominator / 2) / denominator
+		: (numerator - denominator / 2) / denominator;
 }
 
 ADS131M0XError ads131m0xConfigure(ADS131M0X* const dev, const ADS131M0XConfig* const config)
@@ -338,9 +345,9 @@ ADS131M0XError ads131m0xReadData(const ADS131M0X* const dev, ADS131M0XData* cons
 
 	/* Validate CRC if enabled */
 	ADS131M0XError crc_err = checkCRC(dev, rx_buf);
-	if (crc_err != ADS131M0X_ERROR_OK && crc_err != ADS131M0X_ERROR_CRC)
+	if (crc_err != ADS131M0X_ERROR_OK)
 		return crc_err;
-	data->crc_valid = (crc_err == ADS131M0X_ERROR_OK);
+	data->crc_valid = dev->crc.is_enabled;
 
 	/* Extract channel data from words 1..CHANNEL_COUNT */
 	for (uint8_t i = 0; i < ADS131M0X_CHANNEL_COUNT; i++)
@@ -545,6 +552,18 @@ ADS131M0XError ads131m0xWriteRegister(const ADS131M0X* const dev, const uint8_t 
 	if (err != ADS131M0X_ERROR_OK)
 		return err;
 
+	/* Read back WREG acknowledgment (response to WREG comes in next frame) */
+	uint8_t rx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
+	memset(rx_buf, 0, sizeof(rx_buf));
+	err = ads131m0xRead(dev, rx_buf, frame_bytes);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
+
+	uint16_t ack = ((uint16_t)rx_buf[0] << 8U) | rx_buf[1];
+	uint16_t expected_ack = 0x4000U | ((uint16_t)address << 7U);
+	if (ack != expected_ack)
+		return ADS131M0X_ERROR_SPI;
+
 	return ADS131M0X_ERROR_OK;
 }
 
@@ -577,6 +596,18 @@ ADS131M0XError ads131m0xWriteRegisters(const ADS131M0X* const dev, const uint8_t
 	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
 	if (err != ADS131M0X_ERROR_OK)
 		return err;
+
+	/* Read back WREG acknowledgment (response to WREG comes in next frame) */
+	uint8_t rx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
+	memset(rx_buf, 0, sizeof(rx_buf));
+	err = ads131m0xRead(dev, rx_buf, frame_bytes);
+	if (err != ADS131M0X_ERROR_OK)
+		return err;
+
+	uint16_t ack = ((uint16_t)rx_buf[0] << 8U) | rx_buf[1];
+	uint16_t expected_ack = 0x4000U | ((uint16_t)address << 7U) | ((count - 1U) & 0x7FU);
+	if (ack != expected_ack)
+		return ADS131M0X_ERROR_SPI;
 
 	return ADS131M0X_ERROR_OK;
 }
@@ -669,31 +700,31 @@ static int32_t signExtend(const uint8_t* bytes, ADS131M0XWordLength word_length)
 	{
 		case ADS131M0X_WLENGTH_16_BIT:
 		{
-			int32_t upper_byte   = ((int32_t) bytes[0] << 24);
-			int32_t lower_byte   = ((int32_t) bytes[1] << 16);
-			return (((int32_t) (upper_byte | lower_byte)) >> 16);
+			uint32_t raw = ((uint32_t)bytes[0] << 24)
+						 | ((uint32_t)bytes[1] << 16);
+			return (int32_t)raw >> 16;
 		}
 		case ADS131M0X_WLENGTH_24_BIT:
 		{
-			int32_t upper_byte   = ((int32_t) bytes[0] << 24);
-			int32_t middle_byte  = ((int32_t) bytes[1] << 16);
-			int32_t lower_byte   = ((int32_t) bytes[2] << 8);
-			return (((int32_t) (upper_byte | middle_byte | lower_byte)) >> 8);
+			uint32_t raw = ((uint32_t)bytes[0] << 24)
+						 | ((uint32_t)bytes[1] << 16)
+						 | ((uint32_t)bytes[2] << 8);
+			return (int32_t)raw >> 8;
 		}
 		case ADS131M0X_WLENGTH_32_BIT_ZERO:
 		{
-			int32_t upper_byte   = ((int32_t) bytes[0] << 24);
-			int32_t middle_byte  = ((int32_t) bytes[1] << 16);
-			int32_t lower_byte   = ((int32_t) bytes[2] << 8);
-			return (((int32_t) (upper_byte | middle_byte | lower_byte)) >> 8);
+			uint32_t raw = ((uint32_t)bytes[0] << 24)
+						 | ((uint32_t)bytes[1] << 16)
+						 | ((uint32_t)bytes[2] << 8);
+			return (int32_t)raw >> 8;
 		}
 		case ADS131M0X_WLENGTH_32_BIT_SIGN:
 		{
-			int32_t sign_byte    = ((int32_t) bytes[0] << 24);
-			int32_t upper_byte   = ((int32_t) bytes[1] << 16);
-			int32_t middle_byte  = ((int32_t) bytes[2] << 8);
-			int32_t lower_byte   = ((int32_t) bytes[3] << 0);
-			return (sign_byte | upper_byte | middle_byte | lower_byte);
+			uint32_t raw = ((uint32_t)bytes[0] << 24)
+						 | ((uint32_t)bytes[1] << 16)
+						 | ((uint32_t)bytes[2] << 8)
+						 | ((uint32_t)bytes[3]);
+			return (int32_t)raw;
 		}
 		default:
 			return 0;
