@@ -123,7 +123,12 @@ wheels/
 config.local.*
 .claude
 .vscode
+CLAUDE.md
 
 # Examples that might contain sensitive data
 examples/*/config.h
 examples/*/secrets.h
+
+# Dependencies managed by IDF Component Manager
+managed_components/
+dependencies.lock
