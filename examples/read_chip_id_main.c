@@ -145,18 +145,18 @@ void app_main(void)
 		.turbo_mode         = true,
 		.word_length        = ADS131M0X_WLENGTH_24_BIT,
 		.spi_timeout_enabled = true,
-		// .crc =
-		// {
-        //     .output_enabled = false,
-		// 	.input_enabled  = false,
-		// 	.polynomial     = ADS131M0X_CRC_POLYNOMIAL_ANSI,
-		// },
-		// .data_ready =
-		// {
-		// 	.selection = ADS131M0X_DRDY_SEL_MOST_LAGGING,
-		// 	.hiz       = false,
-		// 	.format    = ADS131M0X_DRDY_FMT_LOGIC_LOW,
-		// },
+		.crc =
+		{
+            .output_enabled = false,
+			.input_enabled  = false,
+			.polynomial     = ADS131M0X_CRC_POLYNOMIAL_ANSI,
+		},
+		.data_ready =
+		{
+			.selection = ADS131M0X_DRDY_SEL_MOST_LAGGING,
+			.hiz       = false,
+			.format    = ADS131M0X_DRDY_FMT_LOGIC_LOW,
+		},
 	};
 	err = ads131m0xConfigure(&s_adc, &config);
 	if (err != ADS131M0X_ERROR_OK)
