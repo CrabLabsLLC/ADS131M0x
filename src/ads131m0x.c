@@ -14,11 +14,17 @@
 #define ADS131M0X_CRC_POLYNOMIAL_HEX_CCITT 0x1021U
 #define ADS131M0X_CRC_POLYNOMIAL_HEX_ANSI  0x8005U
 
+/* Bring-up recovery: power-supply settle and per-candidate RESET poll. */
+#define ADS131M0X_INIT_POWER_SETTLE_MS 50U
+#define ADS131M0X_RESET_POLL_ATTEMPTS  8U
+#define ADS131M0X_RESET_POLL_PERIOD_MS 1U
+
 /* ── Static Forward Declarations ─────────────────────────────────────────────── */
 static uint8_t bytesPerWord(ADS131M0XWordLength word_length);
 static void packWord(uint8_t* buf, uint16_t word, ADS131M0XWordLength word_length);
 static int32_t signExtend(const uint8_t* bytes, ADS131M0XWordLength word_length);
 static uint16_t calculateCRC(uint16_t crc_polynomial, const uint8_t* data, uint8_t length_bytes, uint16_t initial_value);
+static void appendInputCrc(const ADS131M0X* const dev, uint8_t* const tx_buf);
 static ADS131M0XError sendCommand(const ADS131M0X* const dev, ADS131M0XCommand command, uint16_t* const response);
 static ADS131M0XError checkCRC(const ADS131M0X* const dev, const uint8_t* buf);
 
@@ -34,51 +40,49 @@ ADS131M0XError ads131m0xInit(ADS131M0X* const dev, const ADS131M0XHAL* const hal
 	dev->hal = *hal;
 	dev->is_initialized = false;
 	dev->is_locked = false;
-	dev->word_length = ADS131M0X_WLENGTH_24_BIT;
+	dev->word_length = ADS131M0X_WLENGTH_24_BIT;       /* POR default */
 	dev->crc.is_enabled = false;
-	dev->crc.type = ADS131M0X_CRC_POLYNOMIAL_CCITT;
+	dev->crc.is_input_enabled = false;                  /* POR: RX_CRC_EN = 0 */
+	dev->crc.type = ADS131M0X_CRC_POLYNOMIAL_CCITT;     /* POR default */
 
-	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
-	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
+	/* Wait for the supply rail to settle before any SPI traffic. */
+	dev->hal.delayMs(ADS131M0X_INIT_POWER_SETTLE_MS);
 
-	/* Hardware reset via SYNC/RESET pin */
+	/* Optional hardware reset: only if the SYNC/RESET pin is wired to MCU. */
 	if (dev->hal.syncResetSet != NULL)
 	{
 		dev->hal.syncResetSet(false);
 		dev->hal.delayMs(1);
 		dev->hal.syncResetSet(true);
 		dev->hal.delayMs(1);
-
-		/* Read the initial frame — device outputs FF24h after reset */
-		uint8_t rx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
-		memset(rx_buf, 0, sizeof(rx_buf));
-
-		ADS131M0XError err = ads131m0xRead(dev, rx_buf, frame_bytes);
-		if (err != ADS131M0X_ERROR_OK)
-			return err;
-
-		const uint16_t response = ((uint16_t)rx_buf[0] << 8) | ((uint16_t)rx_buf[1]);
-		if (response != ADS131M0X_RESP_RESET_OK)
-			return ADS131M0X_ERROR_SPI;
-	}
-	else
-	{
-		/* Power supply settling delay before first SPI command */
-		dev->hal.delayMs(50);
-
-		/* Send reset command when no SYNC/RESET pin is wired */
-		ADS131M0XError err = ads131m0xReset(dev);
-		if (err != ADS131M0X_ERROR_OK)
-			return err;
 	}
 
+	/* Soft reset; chip is at POR-default WLENGTH=24 with no input CRC,
+	 * matching dev->* defaults above. ads131m0xReset() polls for the
+	 * 0xFF24 ack and restores POR-default device-handle state. */
 	dev->is_initialized = true;
+	const ADS131M0XError reset_err = ads131m0xReset(dev);
+	if (reset_err != ADS131M0X_ERROR_OK)
+	{
+		dev->is_initialized = false;
+		return reset_err;
+	}
 
-	/* Enter standby to reduce power while idle */
-	ADS131M0XError err = ads131m0xStandby(dev);
-	if (err != ADS131M0X_ERROR_OK)
-		return err;
+	/* Read the chip ID register for diagnostic logging. Failure is
+	 * non-fatal -- we report it via the caller's HAL log path if any. */
+	uint16_t chip_id = 0;
+	(void)ads131m0xReadRegister(dev, ADS131M0X_ID_ADDRESS, &chip_id);
 
+	/* Park in standby so the chip is quiet until the application explicitly
+	 * starts conversions via ads131m0xWakeup(). */
+	const ADS131M0XError standby_err = ads131m0xStandby(dev);
+	if (standby_err != ADS131M0X_ERROR_OK)
+	{
+		dev->is_initialized = false;
+		return standby_err;
+	}
+
+	(void)chip_id; /* kept for future ID-based variant detection */
 	return ADS131M0X_ERROR_OK;
 }
 
@@ -101,36 +105,50 @@ ADS131M0XError ads131m0xReset(ADS131M0X* const dev)
 	if (dev->is_locked)
 		return ADS131M0X_ERROR_LOCKED;
 
+	/* Send RESET at the device's CURRENT word_length (frame size must match
+	 * the chip's actual MODE.WLENGTH or the chip sees an incomplete frame
+	 * and echoes 0x0011 instead of acting on it -- per datasheet sec.
+	 * 8.5.1.10.2). Caller is responsible for setting dev->word_length. */
 	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
 	memset(tx_buf, 0, sizeof(tx_buf));
 	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
 	const uint8_t frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
 	packWord(tx_buf, (uint16_t)ADS131M0X_CMD_RESET, dev->word_length);
+	appendInputCrc(dev, tx_buf);
 
 	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
 	if (err != ADS131M0X_ERROR_OK)
 		return err;
 
-	dev->hal.delayMs(1);
-
-	/* Device resets to 24-bit word length, so we must frame the response accordingly */
+	/* After RESET, chip switches to 24-bit framing on the next CS-low. The
+	 * FFh24 ack appears in the response slot of the next frame, but the
+	 * chip may need several frames to settle (we may catch a 0x0011 echo
+	 * frame first). Poll up to a handful of frames at 24-bit framing. */
 	const uint8_t reset_bytes_per_word = bytesPerWord(ADS131M0X_WLENGTH_24_BIT);
 	const uint8_t reset_frame_bytes = (2U + ADS131M0X_CHANNEL_COUNT) * reset_bytes_per_word;
+	dev->word_length = ADS131M0X_WLENGTH_24_BIT;
+	dev->crc.type    = ADS131M0X_CRC_POLYNOMIAL_CCITT;
 
 	uint8_t rx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
-	memset(rx_buf, 0, sizeof(rx_buf));
-	err = ads131m0xRead(dev, rx_buf, reset_frame_bytes);
-	if (err != ADS131M0X_ERROR_OK)
-		return err;
-
-	const uint16_t response = ((uint16_t)rx_buf[0] << 8) | ((uint16_t)rx_buf[1]);
+	uint16_t response = 0;
+	for (uint8_t attempt = 0; attempt < ADS131M0X_RESET_POLL_ATTEMPTS; attempt++)
+	{
+		dev->hal.delayMs(ADS131M0X_RESET_POLL_PERIOD_MS);
+		memset(rx_buf, 0, sizeof(rx_buf));
+		err = ads131m0xRead(dev, rx_buf, reset_frame_bytes);
+		if (err != ADS131M0X_ERROR_OK)
+			return err;
+		response = ((uint16_t)rx_buf[0] << 8) | ((uint16_t)rx_buf[1]);
+		if (response == ADS131M0X_RESP_RESET_OK)
+			break;
+	}
 	if (response != ADS131M0X_RESP_RESET_OK)
 		return ADS131M0X_ERROR_SPI;
 
 	/* Restore power-on defaults in device handle */
-	dev->word_length = ADS131M0X_WLENGTH_24_BIT;
 	dev->is_locked = false;
 	dev->crc.is_enabled = false;
+	dev->crc.is_input_enabled = false;
 	dev->crc.type = ADS131M0X_CRC_POLYNOMIAL_CCITT;
 
 	return ADS131M0X_ERROR_OK;
@@ -172,16 +190,18 @@ ADS131M0XError ads131m0xConfigure(ADS131M0X* const dev, const ADS131M0XConfig* c
 
 	ADS131M0XError err;
 
-	/* Pack MODE register */
+	/* Pack MODE register. CRC implementation lives in the read/write
+	 * primitives (appendInputCrc, checkCRC); config bits below just tell
+	 * the chip whether to require/emit CRC. */
 	uint16_t mode_val = 0;
 	mode_val |= ((uint16_t)config->crc.is_output_enabled    << ADS131M0X_MODE_REG_CRC_EN_SHIFT) & ADS131M0X_MODE_REG_CRC_EN_MASK;
 	mode_val |= ((uint16_t)config->crc.is_input_enabled     << ADS131M0X_MODE_RX_CRC_EN_SHIFT)  & ADS131M0X_MODE_RX_CRC_EN_MASK;
-	mode_val |= ((uint16_t)config->crc.polynomial           << ADS131M0X_MODE_CRC_TYPE_SHIFT)    & ADS131M0X_MODE_CRC_TYPE_MASK;
-	mode_val |= ((uint16_t)config->word_length              << ADS131M0X_MODE_WLENGTH_SHIFT)     & ADS131M0X_MODE_WLENGTH_MASK;
-	mode_val |= ((uint16_t)config->is_spi_timeout_enabled   << ADS131M0X_MODE_TIMEOUT_SHIFT)     & ADS131M0X_MODE_TIMEOUT_MASK;
-	mode_val |= ((uint16_t)config->data_ready.selection     << ADS131M0X_MODE_DRDY_SEL_SHIFT)    & ADS131M0X_MODE_DRDY_SEL_MASK;
+	mode_val |= ((uint16_t)config->crc.polynomial           << ADS131M0X_MODE_CRC_TYPE_SHIFT)   & ADS131M0X_MODE_CRC_TYPE_MASK;
+	mode_val |= ((uint16_t)config->word_length              << ADS131M0X_MODE_WLENGTH_SHIFT)    & ADS131M0X_MODE_WLENGTH_MASK;
+	mode_val |= ((uint16_t)config->is_spi_timeout_enabled   << ADS131M0X_MODE_TIMEOUT_SHIFT)    & ADS131M0X_MODE_TIMEOUT_MASK;
+	mode_val |= ((uint16_t)config->data_ready.selection     << ADS131M0X_MODE_DRDY_SEL_SHIFT)   & ADS131M0X_MODE_DRDY_SEL_MASK;
 	mode_val |= ((uint16_t)config->data_ready.is_hiz_enabled << ADS131M0X_MODE_DRDY_HIZ_SHIFT)  & ADS131M0X_MODE_DRDY_HIZ_MASK;
-	mode_val |= ((uint16_t)config->data_ready.format        << ADS131M0X_MODE_DRDY_FMT_SHIFT)    & ADS131M0X_MODE_DRDY_FMT_MASK;
+	mode_val |= ((uint16_t)config->data_ready.format        << ADS131M0X_MODE_DRDY_FMT_SHIFT)   & ADS131M0X_MODE_DRDY_FMT_MASK;
 
 	/* Pack CLOCK register */
 	uint16_t clock_val = 0;
@@ -196,10 +216,12 @@ ADS131M0XError ads131m0xConfigure(ADS131M0X* const dev, const ADS131M0XConfig* c
 	if (err != ADS131M0X_ERROR_OK)
 		return err;
 
-	/* Update device state to reflect new word length and CRC settings */
-	dev->word_length = config->word_length;
-	dev->crc.is_enabled = config->crc.is_output_enabled;
-	dev->crc.type = config->crc.polynomial;
+	/* Mirror config into device state so the read/write primitives know
+	 * whether to compute + check CRC bytes. */
+	dev->word_length          = config->word_length;
+	dev->crc.is_enabled       = config->crc.is_output_enabled;
+	dev->crc.is_input_enabled = config->crc.is_input_enabled;
+	dev->crc.type             = config->crc.polynomial;
 
 	/* Pack CFG register */
 	uint16_t cfg_val = 0;
@@ -456,6 +478,7 @@ ADS131M0XError ads131m0xReadRegister(const ADS131M0X* const dev, const uint8_t a
 	memset(tx_buf, 0, sizeof(tx_buf));
 	uint16_t opcode = ADS131M0X_CMD_RREG | ((uint16_t)address << 7U);
 	packWord(tx_buf, opcode, dev->word_length);
+	appendInputCrc(dev, tx_buf);
 
 	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
 	if (err != ADS131M0X_ERROR_OK)
@@ -501,6 +524,7 @@ ADS131M0XError ads131m0xReadRegisters(const ADS131M0X* const dev, const uint8_t 
 	memset(tx_buf, 0, sizeof(tx_buf));
 	uint16_t opcode = ADS131M0X_CMD_RREG | ((uint16_t)address << 7U) | ((count - 1U) & 0x7FU);
 	packWord(tx_buf, opcode, dev->word_length);
+	appendInputCrc(dev, tx_buf);
 
 	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
 	if (err != ADS131M0X_ERROR_OK)
@@ -545,6 +569,7 @@ ADS131M0XError ads131m0xWriteRegister(const ADS131M0X* const dev, const uint8_t 
 	uint16_t opcode = ADS131M0X_CMD_WREG | ((uint16_t)address << 7U);
 	packWord(tx_buf, opcode, dev->word_length);
 	packWord(&tx_buf[bytes_per_word], value, dev->word_length);
+	appendInputCrc(dev, tx_buf);
 
 	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
 	if (err != ADS131M0X_ERROR_OK)
@@ -590,6 +615,7 @@ ADS131M0XError ads131m0xWriteRegisters(const ADS131M0X* const dev, const uint8_t
 	{
 		packWord(&tx_buf[(1 + i) * bytes_per_word], value[i], dev->word_length);
 	}
+	appendInputCrc(dev, tx_buf);
 
 	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
 	if (err != ADS131M0X_ERROR_OK)
@@ -651,6 +677,7 @@ ADS131M0XError ads131m0xWrite(const ADS131M0X* const dev, const void* const valu
 }
 
 /* ── Static Helper Functions ─────────────────────────────────────────────────── */
+
 static uint8_t bytesPerWord(ADS131M0XWordLength word_length)
 {
 	switch (word_length)
@@ -752,6 +779,21 @@ static uint16_t calculateCRC(uint16_t crc_polynomial, const uint8_t* data, uint8
 	return crc;
 }
 
+static void appendInputCrc(const ADS131M0X* const dev, uint8_t* const tx_buf)
+{
+	/* No-op when MODE.RX_CRC_EN=0 (the chip then ignores the trailing word).
+	 * Skipping the CCITT bit-loop on the steady-state hot path. */
+	if (!dev->crc.is_input_enabled)
+		return;
+	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
+	const uint8_t crc_offset     = (1U + ADS131M0X_CHANNEL_COUNT) * bytes_per_word;
+	const uint16_t poly = (dev->crc.type == ADS131M0X_CRC_POLYNOMIAL_ANSI)
+	                        ? ADS131M0X_CRC_POLYNOMIAL_HEX_ANSI
+	                        : ADS131M0X_CRC_POLYNOMIAL_HEX_CCITT;
+	const uint16_t crc = calculateCRC(poly, tx_buf, crc_offset, 0xFFFFU);
+	packWord(&tx_buf[crc_offset], crc, dev->word_length);
+}
+
 static ADS131M0XError sendCommand(const ADS131M0X* const dev, ADS131M0XCommand command, uint16_t* const response)
 {
 	const uint8_t bytes_per_word = bytesPerWord(dev->word_length);
@@ -760,6 +802,7 @@ static ADS131M0XError sendCommand(const ADS131M0X* const dev, ADS131M0XCommand c
 	uint8_t tx_buf[ADS131M0X_FRAME_SIZE_MAX_BYTES];
 	memset(tx_buf, 0, sizeof(tx_buf));
 	packWord(tx_buf, (uint16_t)command, dev->word_length);
+	appendInputCrc(dev, tx_buf);
 
 	ADS131M0XError err = ads131m0xWrite(dev, tx_buf, frame_bytes);
 	if (err != ADS131M0X_ERROR_OK)

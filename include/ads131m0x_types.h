@@ -220,9 +220,9 @@ typedef struct
 
 	struct
 	{
-		bool is_output_enabled;             ///< Append CRC word to output frames
-		bool is_input_enabled;              ///< Validate CRC on incoming DIN frames
-		ADS131M0XCRCPolynomial polynomial;  ///< CRC polynomial selection
+		bool is_output_enabled;             ///< Validate CRC on chip-emitted frames (chip always sends; flag controls driver-side check).
+		bool is_input_enabled;              ///< Set MODE.RX_CRC_EN -- chip drops frames whose appended CRC fails to validate.
+		ADS131M0XCRCPolynomial polynomial;  ///< CCITT or ANSI; selects MODE.CRC_TYPE.
 	} crc;
 
 	/* MODE register — DRDY output pin */
@@ -279,7 +279,8 @@ typedef struct
 
 	struct
 	{
-		bool is_enabled;            ///< True when CRC output is active
+		bool is_enabled;          ///< True when chip's outgoing CRC should be checked.
+		bool is_input_enabled;    ///< True when MODE.RX_CRC_EN=1 (frames need a valid input CRC).
 		ADS131M0XCRCPolynomial type;  ///< Active CRC polynomial
 	} crc;
 
